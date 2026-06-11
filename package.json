@@ -5,7 +5,7 @@
   "description": "Tex Cars & Leasing - booking + operations platform (Phase 2)",
   "type": "module",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.9.0"
   },
   "scripts": {
     "predev": "node --import tsx --env-file-if-exists=.env.local scripts/check-env.ts",
@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node --import tsx --env-file-if-exists=.env.local -e \"import('./src/lib/db/migrate.ts').then(m => m.runMigrations()).then(() => console.log('migrations applied'))\"",
+    "db:migrate": "node --import tsx --env-file-if-exists=.env.local scripts/migrate.ts",
     "db:seed": "node --import tsx --env-file-if-exists=.env.local scripts/seed.ts"
   },
   "dependencies": {

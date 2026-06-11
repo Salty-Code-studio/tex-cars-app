@@ -6,6 +6,10 @@
 // NODE_ENV is set to "test" by vitest itself (and is typed read-only).
 process.env.APP_ORIGIN ??= "http://localhost:3000";
 process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:3000";
-process.env.SESSION_SECRET ??= "t".repeat(24) + "s".repeat(24);
-process.env.DATA_ENCRYPTION_KEY ??= Buffer.alloc(32, 7).toString("base64");
-process.env.DATABASE_URL ??= "pglite://memory";
+// HARD-assign the dangerous three: tests must never inherit a real connection
+// string or real secrets from the shell/CI environment. With ??= an ambient
+// Neon DATABASE_URL would make the suite run migrations and insert junk into
+// a real database.
+process.env.SESSION_SECRET = "t".repeat(24) + "s".repeat(24);
+process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
+process.env.DATABASE_URL = "pglite://memory";

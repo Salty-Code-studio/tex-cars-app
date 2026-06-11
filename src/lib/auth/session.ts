@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { env } from "@/env";
-import { db, type SessionRecord } from "@/lib/db";
+import { memoryStore as db, type SessionRecord } from "@/lib/auth/memory-store";
 
 /**
  * Opaque, server-side sessions.

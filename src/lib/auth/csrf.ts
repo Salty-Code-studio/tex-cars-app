@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import type { SessionRecord } from "@/lib/db";
+import type { SessionRecord } from "@/lib/auth/memory-store";
 import { CSRF_COOKIE } from "@/lib/auth/cookies";
 import { isAllowedOrigin } from "@/lib/http/cors";
 import { Errors } from "@/lib/http/errors";

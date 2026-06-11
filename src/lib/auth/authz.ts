@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { resolveSession } from "@/lib/auth/session";
 import { enforceCsrf } from "@/lib/auth/csrf";
 import { SESSION_COOKIE } from "@/lib/auth/cookies";
-import { db, type SessionRecord, type UserRecord } from "@/lib/db";
+import { memoryStore as db, type SessionRecord, type UserRecord } from "@/lib/auth/memory-store";
 import { Errors } from "@/lib/http/errors";
 
 /**

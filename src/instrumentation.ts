@@ -34,11 +34,20 @@ export async function register(): Promise<void> {
     // Don't let the timer itself keep the event loop alive.
     force.unref();
 
-    // Place any async cleanup here (close DB pools, flush logs, etc.).
-    // For the in-memory starter there is nothing to flush; exit cleanly.
-    logger.info("server_shutdown_complete", { signal });
-    clearTimeout(force);
-    process.exit(0);
+    // Release the database pool before exiting (postgres-js holds idle sockets).
+    // The closer is published on globalThis by src/lib/db/client.ts because
+    // importing that module here would pull the db drivers into the
+    // instrumentation bundle (where node built-ins like `net` don't resolve).
+    const closeDb = (globalThis as Record<string, unknown>).__texCloseDb as
+      | (() => Promise<void>)
+      | undefined;
+    void Promise.resolve(closeDb?.())
+      .catch(() => undefined)
+      .then(() => {
+        logger.info("server_shutdown_complete", { signal });
+        clearTimeout(force);
+        process.exit(0);
+      });
   };
 
   process.on("SIGTERM", () => shutdown("SIGTERM"));

@@ -8,7 +8,7 @@
  * Run: npm run db:seed   (applies pending migrations first)
  */
 import { runMigrations } from "../src/lib/db/migrate";
-import { getDb } from "../src/lib/db/client";
+import { getDb, closeDb } from "../src/lib/db/client";
 import { settings, vehicles, insuranceTiers, addOns } from "../src/lib/db/schema";
 
 const FLEET = [
@@ -51,4 +51,6 @@ async function seed() {
   console.log("Seed complete: settings, 6 vehicles, 3 insurance tiers, 4 add-ons (placeholders flagged in spec §16).");
 }
 
-seed().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
+seed()
+  .then(async () => { await closeDb(); process.exit(0); })
+  .catch(async (e) => { console.error(e); await closeDb().catch(() => undefined); process.exit(1); });
