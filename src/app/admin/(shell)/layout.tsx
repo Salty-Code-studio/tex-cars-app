@@ -32,10 +32,13 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     <div className="shell">
       <aside className="side">
         <div className="logo">TEX<b>CARS</b> Admin</div>
-        <a href="/admin" className="active">Dashboard</a>
+        <a href="/admin">Dashboard</a>
+        <a href="/admin/fleet">Fleet &amp; pricing</a>
+        <a href="/admin/catalog">Add-ons &amp; insurance</a>
+        <a href="/admin/settings">Settings</a>
+        <a href="/admin/policies">Policies</a>
+        <a href="/admin/audit">Audit log</a>
         <a href="#" className="soon">Bookings (Plan 04)</a>
-        <a href="#" className="soon">Fleet (Plan 03)</a>
-        <a href="#" className="soon">Settings (Plan 03)</a>
         <div className="foot">{admin.email} · {admin.role}</div>
       </aside>
       <main className="main">
