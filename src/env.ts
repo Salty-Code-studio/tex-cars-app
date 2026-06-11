@@ -95,6 +95,17 @@ const EnvSchema = z
         "DATABASE_URL must start with postgres:// or pglite://",
       ),
 
+    // Stripe (payments). Prefer a RESTRICTED key (rk_) over a secret key (sk_).
+    STRIPE_SECRET_KEY: z
+      .string({ required_error: "STRIPE_SECRET_KEY is required" })
+      .refine((v) => !looksLikePlaceholder(v), { message: "STRIPE_SECRET_KEY still contains a placeholder value" })
+      .refine((v) => /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/.test(v), { message: "STRIPE_SECRET_KEY must be an sk_/rk_ key" }),
+    // Webhook signing secret for verifying inbound Stripe events.
+    STRIPE_WEBHOOK_SECRET: z
+      .string({ required_error: "STRIPE_WEBHOOK_SECRET is required" })
+      .refine((v) => !looksLikePlaceholder(v), { message: "STRIPE_WEBHOOK_SECRET still contains a placeholder value" })
+      .refine((v) => /^whsec_[A-Za-z0-9]+$/.test(v), { message: "STRIPE_WEBHOOK_SECRET must start with whsec_" }),
+
     // 32-byte base64 key for AES-256-GCM field encryption (license PII).
     // Generate with: openssl rand -base64 32
     DATA_ENCRYPTION_KEY: z

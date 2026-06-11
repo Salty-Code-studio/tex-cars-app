@@ -13,3 +13,5 @@ process.env.CORS_ALLOWED_ORIGINS ??= "http://localhost:3000";
 process.env.SESSION_SECRET = "t".repeat(24) + "s".repeat(24);
 process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
 process.env.DATABASE_URL = "pglite://memory";
+process.env.STRIPE_SECRET_KEY = "sk_test_0000000000000000000000000000";
+process.env.STRIPE_WEBHOOK_SECRET = "whsec_testtesttesttesttesttesttest00";
