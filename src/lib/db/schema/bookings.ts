@@ -12,9 +12,11 @@ export const paymentOption = pgEnum("payment_option", ["reservation_fee", "full_
  * so back-to-back rentals share a boundary day without colliding.
  *
  * Overlap safety is NOT app code: a custom migration adds
- *   EXCLUDE USING gist (vehicle_id WITH =, daterange(start_date, end_date, '[)') WITH &&)
+ *   EXCLUDE USING gist (vehicle_id WITH =, daterange(start_date, buffer_end_date, '[)') WITH &&)
  *   WHERE (status IN ('pending', 'confirmed'))
  * making double-booking physically impossible even under a race (spec §7).
+ * bufferEndDate = endDate + the turnaround buffer at booking time, so the
+ * cleaning gap is enforced by the DATABASE, not just the advisory pre-check.
  */
 export const bookings = pgTable("bookings", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -22,6 +24,7 @@ export const bookings = pgTable("bookings", {
   customerId: uuid("customer_id").notNull().references(() => customers.id),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
+  bufferEndDate: date("buffer_end_date").notNull(), // endDate + turnaround buffer; drives the exclusion constraint
   status: bookingStatus("status").notNull().default("pending"),
   priceBreakdown: jsonb("price_breakdown").notNull(), // server-computed snapshot, never client math
   insuranceTierId: uuid("insurance_tier_id").references(() => insuranceTiers.id),
@@ -32,7 +35,10 @@ export const bookings = pgTable("bookings", {
   idempotencyKey: text("idempotency_key").notNull().unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [check("bookings_dates", sql`${t.endDate} > ${t.startDate}`)]);
+}, (t) => [
+  check("bookings_dates", sql`${t.endDate} > ${t.startDate}`),
+  check("bookings_buffer", sql`${t.bufferEndDate} >= ${t.endDate}`),
+]);
 
 export const bookingAddOns = pgTable("booking_add_ons", {
   id: uuid("id").defaultRandom().primaryKey(),

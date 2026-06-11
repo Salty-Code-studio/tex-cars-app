@@ -113,6 +113,17 @@ describe("createBooking", () => {
     ).rejects.toThrow(/at least/i);
   });
 
+  it("treats a duplicated add-on in one request as summed quantity (no single-request oversell)", async () => {
+    // stock is 2; sending the same add-on twice at qty 2 each must be rejected
+    await expect(
+      createBooking(input({
+        vehicleSlug: "book-car", startDate: "2027-05-01", endDate: "2027-05-05",
+        addOns: [{ addOnId: limitedAddOnId, qty: 2 }, { addOnId: limitedAddOnId, qty: 2 }],
+        idempotencyKey: "dup-stock-1",
+      }), TODAY),
+    ).rejects.toThrow(/left for those dates/i);
+  });
+
   it("never returns licence plaintext on the booking", async () => {
     const { booking } = await createBooking(input({ startDate: "2027-03-01", endDate: "2027-03-05", idempotencyKey: "leak-1" }), TODAY);
     expect(JSON.stringify(booking)).not.toContain("AUA-7654321");

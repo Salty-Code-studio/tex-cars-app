@@ -1,9 +1,9 @@
 /**
- * Date guardrails (spec §7) and availability checks. The HARD no-double-booking
- * guarantee is the Postgres exclusion constraint enforced at insert time; this
- * module is the pre-flight check that powers the UI and gives clean errors
- * before we attempt the insert. The turnaround buffer (cleaning gap) is a
- * business rule enforced here and in the creation transaction.
+ * Date guardrails (spec §7) and availability checks. The HARD guarantee is the
+ * Postgres exclusion constraint, which spans [start, bufferEnd) so it enforces
+ * BOTH no-double-booking AND the turnaround (cleaning) buffer at insert time,
+ * even under a race. This module is the pre-flight check that powers the UI and
+ * gives clean errors before we attempt the insert.
  */
 import { and, eq, ne, lt, gt, sql, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";

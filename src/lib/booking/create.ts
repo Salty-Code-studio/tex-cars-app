@@ -9,7 +9,7 @@
  * booking instead of creating two.
  */
 import { z } from "zod";
-import { eq, inArray } from "drizzle-orm";
+import { eq, and, inArray, lt, gt, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import {
   vehicles, customers, bookings, bookingAddOns, addOns, insuranceTiers, driverLicenses,
@@ -19,7 +19,7 @@ import { isUniqueViolation, translateDbError } from "@/lib/db/errors";
 import { getSettings } from "@/lib/admin/settings";
 import { getLatestPolicy } from "@/lib/admin/policies";
 import { rentalDays, quote, type QuoteBreakdown } from "@/lib/booking/quote";
-import { validateDates, checkAvailability, addOnHeadroom } from "@/lib/booking/availability";
+import { validateDates, checkAvailability } from "@/lib/booking/availability";
 import { LicenseSchema, validateLicense, encryptLicense } from "@/lib/booking/license";
 
 export const BookingCreateSchema = z.object({
@@ -80,7 +80,12 @@ export async function createBooking(input: BookingCreateInput, today: string): P
     insurance = { id: tier.id, name: tier.name, dailyPriceCents: tier.dailyPriceCents };
   }
 
-  const requestedAddOns = input.addOns;
+  // Dedup: the same add-on sent twice in one request is ONE line of summed qty,
+  // so a duplicate can't sneak past the per-entry stock check.
+  const requestedAddOns = Array.from(
+    input.addOns.reduce((m, a) => m.set(a.addOnId, (m.get(a.addOnId) ?? 0) + a.qty), new Map<string, number>()),
+    ([addOnId, qty]) => ({ addOnId, qty }),
+  );
   const addOnRows = requestedAddOns.length
     ? await db.select().from(addOns).where(inArray(addOns.id, requestedAddOns.map((a) => a.addOnId)))
     : [];
@@ -88,9 +93,7 @@ export async function createBooking(input: BookingCreateInput, today: string): P
   for (const req of requestedAddOns) {
     const a = addOnById.get(req.addOnId);
     if (!a || !a.active) throw Errors.badRequest("An add-on is unavailable");
-    // Stock: limited add-ons cannot be oversold across overlapping dates.
-    const headroom = await addOnHeadroom(a.id, a.stock, input.startDate, input.endDate);
-    if (req.qty > headroom) throw Errors.conflict(`Only ${Math.max(0, headroom)} of "${a.name}" left for those dates`);
+    if (req.qty > 10) throw Errors.badRequest(`At most 10 of "${a.name}" per booking`);
   }
 
   const days = rentalDays(input.startDate, input.endDate);
@@ -113,23 +116,50 @@ export async function createBooking(input: BookingCreateInput, today: string): P
 
   const termsVersion = (await getLatestPolicy("rental_terms"))?.version ?? 0;
   const retainUntil = new Date(Date.parse(`${input.endDate}T00:00:00Z`) + settings.licenseRetentionDays * 86_400_000);
+  // The DB exclusion constraint runs over [start, bufferEnd) so the cleaning gap
+  // is physically enforced (not just pre-checked).
+  const bufferEndDate = new Date(Date.parse(`${input.endDate}T00:00:00Z`) + settings.turnaroundBufferDays * 86_400_000)
+    .toISOString().slice(0, 10);
   const now = new Date();
 
   try {
     return await db.transaction(async (tx) => {
+      // Authoritative stock check, INSIDE the transaction: lock each limited
+      // add-on row so concurrent bookings serialize, then recount committed qty
+      // over overlapping dates. (App-code-only counting can't make oversell
+      // impossible; the row lock closes the TOCTOU window in real Postgres.)
+      for (const req of requestedAddOns) {
+        const a = addOnById.get(req.addOnId)!;
+        if (a.stock === null) continue; // unlimited
+        await tx.select({ id: addOns.id }).from(addOns).where(eq(addOns.id, a.id)).for("update");
+        const [usedRow] = await tx
+          .select({ used: sql<number>`coalesce(sum(${bookingAddOns.qty}), 0)` })
+          .from(bookingAddOns)
+          .innerJoin(bookings, eq(bookingAddOns.bookingId, bookings.id))
+          .where(and(
+            eq(bookingAddOns.addOnId, a.id),
+            inArray(bookings.status, ["pending", "confirmed"]),
+            lt(bookings.startDate, input.endDate),
+            gt(bookings.endDate, input.startDate),
+          ));
+        const headroom = a.stock - Number(usedRow?.used ?? 0);
+        if (req.qty > headroom) throw Errors.conflict(`Only ${Math.max(0, headroom)} of "${a.name}" left for those dates`);
+      }
+
       // Upsert the customer by email (passwordless verification lands in Plan 06).
       await tx.insert(customers)
         .values({ email: input.customer.email, name: input.customer.name, phone: input.customer.phone })
         .onConflictDoNothing({ target: customers.email });
       const [customer] = await tx.select().from(customers).where(eq(customers.email, input.customer.email));
 
-      // Insert the booking — the exclusion constraint rejects any overlap here,
-      // even if checkAvailability raced.
+      // Insert the booking — the exclusion constraint rejects any (buffered)
+      // overlap here, even if checkAvailability raced.
       const [booking] = await tx.insert(bookings).values({
         vehicleId: vehicle.id,
         customerId: customer!.id,
         startDate: input.startDate,
         endDate: input.endDate,
+        bufferEndDate,
         status: "pending",
         priceBreakdown: breakdown,
         insuranceTierId: insurance?.id ?? null,

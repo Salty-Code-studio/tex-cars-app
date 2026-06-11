@@ -42,7 +42,7 @@ describe("checkAvailability", () => {
 
   it("is unavailable when a booking overlaps", async () => {
     await db.insert(bookings).values({
-      vehicleId, customerId, startDate: "2026-08-01", endDate: "2026-08-10", status: "confirmed",
+      vehicleId, customerId, startDate: "2026-08-01", endDate: "2026-08-10", bufferEndDate: "2026-08-10", status: "confirmed",
       priceBreakdown: {}, paymentOption: "reservation_fee", acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: "av-k1",
     });
     expect((await checkAvailability(vehicleId, "2026-08-05", "2026-08-12", settings)).available).toBe(false);

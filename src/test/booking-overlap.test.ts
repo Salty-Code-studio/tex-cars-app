@@ -15,9 +15,10 @@ const mkBooking = (
   key: string,
   status: "pending" | "confirmed" | "cancelled" | "completed" = "confirmed",
   forVehicleId?: string,
+  bufferEnd?: string,
 ) => ({
   vehicleId: forVehicleId ?? vehicleId,
-  customerId, startDate: start, endDate: end, status,
+  customerId, startDate: start, endDate: end, bufferEndDate: bufferEnd ?? end, status,
   priceBreakdown: { totalCents: 10000 },
   paymentOption: "reservation_fee" as const,
   acceptedPolicyVersion: 1,
@@ -96,5 +97,19 @@ describe("bookings_no_overlap exclusion constraint", () => {
       db.insert(bookings).values(mkBooking("2026-10-05", "2026-10-05", "k6")),
       /bookings_dates|check/i,
     );
+  });
+
+  it("the exclusion constraint enforces the turnaround buffer (DB-level, not just app)", async () => {
+    // booking with a 1-day buffer: occupies [2026-12-01, 2026-12-06) for cleaning
+    await db.insert(bookings).values(mkBooking("2026-12-01", "2026-12-05", "buf-1", "confirmed", undefined, "2026-12-06"));
+    // a new booking starting on the buffer day (12-05) clashes at the DB level
+    await expectReject(
+      db.insert(bookings).values(mkBooking("2026-12-05", "2026-12-09", "buf-2", "confirmed", undefined, "2026-12-10")),
+      /bookings_no_overlap|exclusion/i,
+    );
+    // starting after the cleaning gap (12-06) is allowed
+    await expect(
+      db.insert(bookings).values(mkBooking("2026-12-06", "2026-12-09", "buf-3", "confirmed", undefined, "2026-12-10")),
+    ).resolves.toBeDefined();
   });
 });

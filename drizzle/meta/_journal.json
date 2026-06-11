@@ -50,6 +50,13 @@
       "when": 1781209181824,
       "tag": "0006_license_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781210469404,
+      "tag": "0007_booking_buffer",
+      "breakpoints": true
     }
   ]
 }
