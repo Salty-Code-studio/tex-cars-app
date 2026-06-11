@@ -36,8 +36,10 @@ export function encryptField(plaintext: string, aad: string): Buffer {
   return Buffer.concat([Buffer.from([VERSION]), iv, cipher.getAuthTag(), ciphertext]);
 }
 
-export function decryptField(stored: Buffer, aad: string): string {
+export function decryptField(storedInput: Buffer | Uint8Array, aad: string): string {
   if (!aad) throw new Error("decryptField: aad context is required");
+  // postgres-js returns bytea as Buffer; PGlite returns Uint8Array. Normalize.
+  const stored = Buffer.isBuffer(storedInput) ? storedInput : Buffer.from(storedInput);
   if (stored.length < 1 + IV_LEN + TAG_LEN) throw new Error("Ciphertext too short");
   if (stored[0] !== VERSION) throw new Error(`Unknown ciphertext version: ${stored[0]}`);
   const iv = stored.subarray(1, 1 + IV_LEN);
