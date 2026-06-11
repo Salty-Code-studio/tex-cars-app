@@ -81,6 +81,9 @@ const EnvSchema = z
 
     SESSION_SECRET: secret("SESSION_SECRET"),
     SESSION_TTL_SECONDS: positiveInt("SESSION_TTL_SECONDS").default(86_400),
+    // Idle timeout: a session unused for this long dies even before the
+    // absolute SESSION_TTL_SECONDS expiry (spec §4: idle + absolute timeout).
+    SESSION_IDLE_TTL_SECONDS: positiveInt("SESSION_IDLE_TTL_SECONDS").default(1_800),
 
     // Postgres connection. postgres:// for Neon/real Postgres,
     // pglite://memory or pglite://<dir> for the zero-install dev/test database.
