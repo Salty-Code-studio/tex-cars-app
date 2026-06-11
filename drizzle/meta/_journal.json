@@ -22,6 +22,13 @@
       "when": 1781200531217,
       "tag": "0002_booking_overlap_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781200771442,
+      "tag": "0003_licenses_payments_admin_logs",
+      "breakpoints": true
     }
   ]
 }

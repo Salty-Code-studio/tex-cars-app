@@ -1,0 +1,30 @@
+import { pgTable, pgEnum, text, integer, boolean, timestamp, uuid, uniqueIndex } from "drizzle-orm/pg-core";
+import { bytea } from "./licenses";
+
+export const adminRole = pgEnum("admin_role", ["owner", "staff"]);
+export const policyType = pgEnum("policy_type", ["rental_terms", "cancellation", "privacy"]);
+
+/** Maximum-lockdown accounts (spec §4): Argon2id hash, mandatory TOTP once
+ *  enrolled, failed-attempt lockout. The TOTP secret is encrypted at rest. */
+export const adminUsers = pgTable("admin_users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: adminRole("role").notNull().default("owner"),
+  totpSecretEnc: bytea("totp_secret_enc"),
+  mfaEnabled: boolean("mfa_enabled").notNull().default(false),
+  failedAttempts: integer("failed_attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Versioned policy documents (spec §10). Bookings store the version the
+ *  customer accepted; old versions are kept for proof. */
+export const policies = pgTable("policies", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  type: policyType("type").notNull(),
+  version: integer("version").notNull(),
+  body: text("body").notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("policies_type_version").on(t.type, t.version)]);

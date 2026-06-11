@@ -4,3 +4,7 @@ export * from "./customers";
 export * from "./settings";
 export * from "./catalog";
 export * from "./bookings";
+export * from "./licenses";
+export * from "./payments";
+export * from "./admin";
+export * from "./logs";
