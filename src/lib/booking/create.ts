@@ -9,7 +9,7 @@
  * booking instead of creating two.
  */
 import { z } from "zod";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import {
   vehicles, customers, bookings, bookingAddOns, addOns, insuranceTiers, driverLicenses,
