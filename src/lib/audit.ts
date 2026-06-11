@@ -5,6 +5,7 @@
 import { getDb } from "@/lib/db/client";
 import { auditLog } from "@/lib/db/schema";
 import { logger } from "@/lib/logger";
+import { trustedClientIp } from "@/lib/http/client-ip";
 
 export interface AuditEntry {
   actor: string; // admin user id, customer id, or "anonymous"/"system"
@@ -14,14 +15,6 @@ export interface AuditEntry {
   before?: unknown;
   after?: unknown;
   req?: Request;
-}
-
-function clientIp(req: Request | undefined): string | null {
-  if (!req) return null;
-  // Behind Vercel/our proxy these are overwritten by the platform edge.
-  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    ?? req.headers.get("x-real-ip")
-    ?? null;
 }
 
 export async function audit(entry: AuditEntry): Promise<void> {
@@ -34,7 +27,9 @@ export async function audit(entry: AuditEntry): Promise<void> {
       entityId: entry.entityId ?? null,
       before: entry.before ?? null,
       after: entry.after ?? null,
-      ip: clientIp(entry.req),
+      // Trusted only behind a proxy that overwrites the header; otherwise null,
+      // so a client cannot forge the IP recorded against their own actions.
+      ip: entry.req ? trustedClientIp(entry.req) : null,
       ua: entry.req?.headers.get("user-agent") ?? null,
     });
   } catch (error) {

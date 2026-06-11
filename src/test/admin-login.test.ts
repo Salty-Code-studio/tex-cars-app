@@ -68,6 +68,17 @@ describe("admin login + lockout", () => {
     expect(row?.lockedUntil).toBeNull();
   });
 
+  it("a locked account returns the same generic failure as an unknown email (no existence oracle)", async () => {
+    const admin = await makeAdmin("oracle@tex-cars.com");
+    for (let i = 0; i < LOCK_THRESHOLD; i++) await loginAdmin(admin.email, "bad");
+    const locked = await loginAdmin(admin.email, PASSWORD); // correct password, but locked
+    const unknown = await loginAdmin("nobody@tex-cars.com", "whatever");
+    // loginAdmin still reports retryAfterSec internally for audit/limiter use,
+    // but the locked result must remain ok:false just like the unknown one.
+    expect(locked.ok).toBe(false);
+    expect(unknown.ok).toBe(false);
+  });
+
   it("audit-logs failures, lockouts, and successes", async () => {
     const rows = await db.select().from(auditLog);
     const actions = new Set(rows.map((r) => r.action));

@@ -77,6 +77,17 @@ describe("postgres sessions", () => {
     expect(live?.mfaPending).toBe(false);
   });
 
+  it("rotation inherits the absolute deadline (hard cap from first login, not reset)", async () => {
+    const first = await mk();
+    const rotated = await rotateSession(first.record);
+    // same absolute expiry carried over despite a new createdAt-eligible row
+    expect(rotated.record.expiresAt.getTime()).toBe(first.record.expiresAt.getTime());
+    expect(rotated.record.createdAt.getTime()).toBe(first.record.createdAt.getTime());
+    // and the rotated session dies at the ORIGINAL absolute deadline
+    const past = new Date(first.record.expiresAt.getTime() + 1000);
+    expect(await resolveSession(rotated.cookieValue, past)).toBeNull();
+  });
+
   it("destroySession and destroyAllForSubject revoke access", async () => {
     const a = await mk();
     await destroySession(a.cookieValue);

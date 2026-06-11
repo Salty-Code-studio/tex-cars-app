@@ -7,6 +7,7 @@ import { Errors } from "@/lib/http/errors";
 import { loginAdmin } from "@/lib/auth/admin-login";
 import { createSession } from "@/lib/auth/sessions";
 import { applySessionCookies } from "@/lib/auth/session-cookies";
+import { trustedClientIp } from "@/lib/http/client-ip";
 
 export const runtime = "nodejs";
 
@@ -21,6 +22,13 @@ const BodySchema = z.object({
  * Success issues a session: mfaPending=true when TOTP is enrolled (the second
  * factor is owed), otherwise a full session with enrollRequired=true so the
  * shell forces enrollment before anything else (MFA is mandatory, spec §4).
+ *
+ * Every failure (wrong password, unknown email, AND a locked account) returns
+ * the SAME generic 401 with no lock-specific status or Retry-After. Exposing a
+ * 429 only for existing-but-locked accounts would be an account-existence
+ * oracle. The lock is still enforced server-side (loginAdmin skips password
+ * verification while locked) and the reason is in the audit log; brute-force
+ * throttling is the per-IP limiter's job.
  */
 export const POST = withRoute(async (req) => {
   enforceRateLimit(req, "auth", "admin-login");
@@ -28,7 +36,6 @@ export const POST = withRoute(async (req) => {
 
   const result = await loginAdmin(body.email, body.password, { req });
   if (!result.ok) {
-    if (result.retryAfterSec) throw Errors.rateLimited(result.retryAfterSec, "Account temporarily locked");
     throw Errors.unauthorized("Invalid email or password");
   }
 
@@ -36,7 +43,7 @@ export const POST = withRoute(async (req) => {
     subjectType: "admin",
     subjectId: result.adminId,
     mfaPending: result.mfaEnabled, // TOTP owed only when enrolled
-    ip: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    ip: trustedClientIp(req),
     ua: req.headers.get("user-agent"),
   });
 

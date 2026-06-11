@@ -61,6 +61,8 @@ export interface CreateSessionInput {
   mfaPending?: boolean;
   ip?: string | null;
   ua?: string | null;
+  /** Preserve an existing absolute deadline across rotation (see rotateSession). */
+  preserveExpiry?: { createdAt: Date; expiresAt: Date };
 }
 
 export async function createSession(input: CreateSessionInput): Promise<CreatedSession> {
@@ -68,6 +70,8 @@ export async function createSession(input: CreateSessionInput): Promise<CreatedS
   const id = randomBytes(SID_BYTES).toString("base64url");
   const csrfToken = randomBytes(SID_BYTES).toString("base64url");
   const now = new Date();
+  const createdAt = input.preserveExpiry?.createdAt ?? now;
+  const expiresAt = input.preserveExpiry?.expiresAt ?? new Date(now.getTime() + env.SESSION_TTL_SECONDS * 1000);
   const [record] = await db.insert(sessions).values({
     idHash: hashSid(id),
     subjectType: input.subjectType,
@@ -76,9 +80,9 @@ export async function createSession(input: CreateSessionInput): Promise<CreatedS
     mfaPending: input.mfaPending ?? false,
     ip: input.ip ?? null,
     ua: input.ua ?? null,
-    createdAt: now,
+    createdAt,
     lastSeenAt: now,
-    expiresAt: new Date(now.getTime() + env.SESSION_TTL_SECONDS * 1000),
+    expiresAt,
   }).returning();
   return { cookieValue: pack(id), csrfToken, record: record! };
 }
@@ -117,6 +121,8 @@ export async function resolveSession(
 /**
  * Replace a session with a fresh id + CSRF token (same subject). Used at every
  * privilege boundary: password login → mfa-pending, MFA success → full.
+ * The absolute deadline is INHERITED, not reset — the hard cap is measured from
+ * first authentication, so in-flow rotations can't extend a session's lifetime.
  */
 export async function rotateSession(
   current: SessionRecord,
@@ -130,6 +136,7 @@ export async function rotateSession(
     mfaPending: changes.mfaPending ?? current.mfaPending,
     ip: current.ip,
     ua: current.ua,
+    preserveExpiry: { createdAt: current.createdAt, expiresAt: current.expiresAt },
   });
 }
 
