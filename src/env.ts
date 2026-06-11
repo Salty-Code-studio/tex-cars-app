@@ -82,6 +82,35 @@ const EnvSchema = z
     SESSION_SECRET: secret("SESSION_SECRET"),
     SESSION_TTL_SECONDS: positiveInt("SESSION_TTL_SECONDS").default(86_400),
 
+    // Postgres connection. postgres:// for Neon/real Postgres,
+    // pglite://memory or pglite://<dir> for the zero-install dev/test database.
+    DATABASE_URL: z
+      .string({ required_error: "DATABASE_URL is required" })
+      .min(1, "DATABASE_URL is required")
+      .refine(
+        (v) => /^(postgres(ql)?|pglite):\/\//.test(v),
+        "DATABASE_URL must start with postgres:// or pglite://",
+      ),
+
+    // 32-byte base64 key for AES-256-GCM field encryption (license PII).
+    // Generate with: openssl rand -base64 32
+    DATA_ENCRYPTION_KEY: z
+      .string({ required_error: "DATA_ENCRYPTION_KEY is required" })
+      .refine((v) => !looksLikePlaceholder(v), {
+        message: "DATA_ENCRYPTION_KEY still contains a placeholder value — generate a real key",
+      })
+      .transform((v, ctx) => {
+        const buf = Buffer.from(v, "base64");
+        if (buf.length !== 32) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "DATA_ENCRYPTION_KEY must decode to exactly 32 bytes (openssl rand -base64 32)",
+          });
+          return z.NEVER;
+        }
+        return buf;
+      }),
+
     RATE_LIMIT_GLOBAL_MAX: positiveInt("RATE_LIMIT_GLOBAL_MAX").default(100),
     RATE_LIMIT_GLOBAL_WINDOW_SECONDS: positiveInt("RATE_LIMIT_GLOBAL_WINDOW_SECONDS").default(60),
     RATE_LIMIT_AUTH_MAX: positiveInt("RATE_LIMIT_AUTH_MAX").default(5),
