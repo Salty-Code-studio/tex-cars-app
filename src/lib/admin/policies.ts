@@ -2,6 +2,8 @@ import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { policies } from "@/lib/db/schema";
+import { isUniqueViolation } from "@/lib/db/errors";
+import { Errors } from "@/lib/http/errors";
 
 export type Policy = typeof policies.$inferSelect;
 export type PolicyType = "rental_terms" | "cancellation" | "privacy";
@@ -18,18 +20,30 @@ export const PolicyPublishSchema = z.object({
  */
 export async function publishPolicy(input: z.infer<typeof PolicyPublishSchema>): Promise<Policy> {
   const db = await getDb();
-  const rows = await db
-    .select({ max: sql<number>`coalesce(max(${policies.version}), 0)` })
-    .from(policies)
-    .where(eq(policies.type, input.type));
-  const nextVersion = Number(rows[0]?.max ?? 0) + 1;
-  const [row] = await db.insert(policies).values({
-    type: input.type,
-    version: nextVersion,
-    body: input.body,
-    publishedAt: new Date(),
-  }).returning();
-  return row!;
+  // Assign the next version ATOMICALLY in a single INSERT…SELECT, so the
+  // max(version) read and the insert can't interleave within one connection.
+  // On a multi-connection Postgres two sessions could still both compute the
+  // same version and one hits the (type, version) unique index — we recompute
+  // and retry, so racing publishes become distinct versions, never a 500.
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      const result = (await db.execute(sql`
+        INSERT INTO policies (type, version, body, published_at)
+        SELECT ${input.type}::policy_type, coalesce(max(version), 0) + 1, ${input.body}, now()
+        FROM policies WHERE type = ${input.type}::policy_type
+        RETURNING id, type, version, body, published_at AS "publishedAt"
+      `)) as { rows: unknown[] } | unknown[];
+      const rows = (Array.isArray(result) ? result : result.rows) as Array<{
+        id: string; type: PolicyType; version: number; body: string; publishedAt: string | Date;
+      }>;
+      const r = rows[0]!;
+      return { ...r, version: Number(r.version), publishedAt: new Date(r.publishedAt) };
+    } catch (e) {
+      if (isUniqueViolation(e) && attempt < 7) continue;
+      throw e;
+    }
+  }
+  throw Errors.conflict("Could not assign a policy version, please retry");
 }
 
 export async function getLatestPolicy(type: PolicyType): Promise<Policy | undefined> {

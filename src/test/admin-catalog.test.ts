@@ -21,6 +21,14 @@ describe("admin add-ons", () => {
   it("validates pricing enum", () => {
     expect(AddOnCreateSchema.safeParse({ name: "x", priceCents: 1, pricing: "hourly" }).success).toBe(false);
   });
+
+  it("rejects an empty patch instead of crashing on .set({})", async () => {
+    const { AddOnPatchSchema } = await import("@/lib/admin/catalog");
+    const { InsurancePatchSchema } = await import("@/lib/admin/catalog");
+    expect(AddOnPatchSchema.safeParse({}).success).toBe(false);
+    expect(InsurancePatchSchema.safeParse({}).success).toBe(false);
+    expect(AddOnPatchSchema.safeParse({ active: false }).success).toBe(true);
+  });
 });
 
 describe("admin insurance tiers", () => {

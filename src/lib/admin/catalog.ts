@@ -18,7 +18,8 @@ export const AddOnCreateSchema = z.object({
   stock: z.number().int().min(0).max(1000).nullable().default(null),
   active: z.boolean().default(true),
 }).strict();
-export const AddOnPatchSchema = AddOnCreateSchema.partial().strict();
+export const AddOnPatchSchema = AddOnCreateSchema.partial().strict()
+  .refine((v) => Object.keys(v).length > 0, { message: "No fields to update" });
 
 export async function listAddOns(): Promise<AddOn[]> {
   const db = await getDb();
@@ -49,7 +50,8 @@ export const InsuranceCreateSchema = z.object({
   isDefault: z.boolean().default(false),
   active: z.boolean().default(true),
 }).strict();
-export const InsurancePatchSchema = InsuranceCreateSchema.partial().strict();
+export const InsurancePatchSchema = InsuranceCreateSchema.partial().strict()
+  .refine((v) => Object.keys(v).length > 0, { message: "No fields to update" });
 
 export async function listInsurance(): Promise<InsuranceTier[]> {
   const db = await getDb();

@@ -9,6 +9,7 @@
  */
 import { requireAdmin, type AdminContext, type RequireAdminOptions } from "@/lib/auth/admin-auth";
 import { audit } from "@/lib/audit";
+import { translateDbError } from "@/lib/db/errors";
 
 export async function read<T>(
   req: Request,
@@ -33,7 +34,16 @@ export async function mutate<T>(
   fn: (ctx: AdminContext) => Promise<MutationOutcome<T>>,
 ): Promise<T> {
   const ctx = await requireAdmin(req);
-  const outcome = await fn(ctx);
+  let outcome: MutationOutcome<T>;
+  try {
+    outcome = await fn(ctx);
+  } catch (e) {
+    // Turn a constraint violation (e.g. a unique-slug race) into a clean 4xx
+    // instead of leaking a generic 500.
+    const translated = translateDbError(e);
+    if (translated) throw translated;
+    throw e;
+  }
   await audit({
     actor: ctx.admin.id,
     action,

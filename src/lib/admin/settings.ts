@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { settings, blackoutDates } from "@/lib/db/schema";
 import { centsField } from "@/lib/admin/money";
+import { Errors } from "@/lib/http/errors";
 
 export type Settings = typeof settings.$inferSelect;
 export type BlackoutDate = typeof blackoutDates.$inferSelect;
@@ -45,7 +46,15 @@ export async function getSettings(): Promise<Settings> {
 
 export async function patchSettings(patch: z.infer<typeof SettingsPatchSchema>): Promise<Settings> {
   const db = await getDb();
-  await getSettings(); // ensure the row exists
+  const current = await getSettings(); // ensure the row exists
+  // The schema only catches min>max when BOTH are in the patch. Re-check the
+  // MERGED result so a partial PATCH can't persist an inconsistent range that
+  // the Plan 04 booking-length guardrail would later read.
+  const mergedMin = patch.minRentalDays ?? current.minRentalDays;
+  const mergedMax = patch.maxRentalDays ?? current.maxRentalDays;
+  if (mergedMin > mergedMax) {
+    throw Errors.validation([{ path: "minRentalDays", message: "minRentalDays must be ≤ maxRentalDays" }]);
+  }
   const [updated] = await db.update(settings)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(settings.id, 1))

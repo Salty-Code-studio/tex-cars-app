@@ -39,4 +39,14 @@ describe("versioned policies", () => {
   it("requires a non-empty body", () => {
     expect(PolicyPublishSchema.safeParse({ type: "privacy", body: "" }).success).toBe(false);
   });
+
+  it("assigns distinct versions to concurrent publishes (race-safe, no 500)", async () => {
+    const results = await Promise.all(
+      Array.from({ length: 6 }, (_, i) => publishPolicy({ type: "cancellation", body: `concurrent ${i}` })),
+    );
+    const versions = results.map((r) => r.version).sort((a, b) => a - b);
+    // 6 unique, contiguous versions — none collided into a thrown unique violation
+    expect(new Set(versions).size).toBe(6);
+    expect(versions[versions.length - 1]! - versions[0]!).toBe(5);
+  });
 });

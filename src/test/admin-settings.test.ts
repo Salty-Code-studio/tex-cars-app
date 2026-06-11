@@ -39,4 +39,12 @@ describe("admin settings", () => {
   it("rejects a blackout whose end is not after its start", () => {
     expect(BlackoutSchema.safeParse({ startDate: "2026-12-24", endDate: "2026-12-24" }).success).toBe(false);
   });
+
+  it("rejects a partial patch that would make min>max against the stored value", async () => {
+    await patchSettings({ minRentalDays: 1, maxRentalDays: 30 });
+    // patch only min, above the stored max — must be rejected (merged check)
+    await expect(patchSettings({ minRentalDays: 60 })).rejects.toThrow();
+    // stored state unchanged
+    expect((await getSettings()).minRentalDays).toBe(1);
+  });
 });
