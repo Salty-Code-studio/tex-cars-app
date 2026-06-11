@@ -1,0 +1,63 @@
+/* Tex Cars admin — minimal internal tooling, brand accents only. */
+:root {
+  --blue: #0044ff;
+  --blue-dark: #0a2db0;
+  --orange: #ff4600;
+  --navy: #15192f;
+  --ink: #15192f;
+  --ink-soft: #4a5170;
+  --line: #e6e9f2;
+  --surface: #f7f8fc;
+  --danger: #c81e1e;
+  --ok: #0f7b4d;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Inter, sans-serif; color: var(--ink); background: var(--surface); }
+
+/* auth card pages */
+.auth-wrap { min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; }
+.auth-card { width: 100%; max-width: 400px; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 2rem; box-shadow: 0 10px 30px -18px rgba(21,25,47,.25); }
+.auth-card h1 { font-size: 1.25rem; margin: 0 0 .25rem; }
+.auth-card .sub { color: var(--ink-soft); font-size: .9rem; margin: 0 0 1.25rem; }
+.brand-dot { display: inline-block; width: .55em; height: .55em; border-radius: 50%; background: var(--orange); margin-left: .15em; }
+
+.field { display: grid; gap: .3rem; margin-bottom: .9rem; }
+.field label { font-size: .8rem; font-weight: 600; color: var(--navy); }
+.field input { padding: .65rem .75rem; border: 1.5px solid var(--line); border-radius: 9px; font: inherit; background: var(--surface); }
+.field input:focus { outline: none; border-color: var(--blue); background: #fff; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; width: 100%; padding: .7rem 1rem; border: 0; border-radius: 9px; background: var(--blue); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.btn:hover { background: var(--blue-dark); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn--quiet { background: transparent; color: var(--ink-soft); font-weight: 600; width: auto; padding: .4rem .6rem; }
+.btn--quiet:hover { background: var(--surface); color: var(--navy); }
+
+.msg { font-size: .85rem; min-height: 1.2em; margin: .25rem 0 0; }
+.msg.err { color: var(--danger); }
+.msg.ok { color: var(--ok); }
+
+.qr-box { display: grid; place-items: center; gap: .6rem; padding: 1rem; border: 1px dashed var(--line); border-radius: 10px; margin-bottom: 1rem; }
+.qr-box img { width: 200px; height: 200px; }
+.manual-key { font-family: ui-monospace, Menlo, monospace; font-size: .8rem; word-break: break-all; background: var(--surface); padding: .4rem .6rem; border-radius: 6px; }
+.recovery { background: #fff8f4; border: 1px solid #ffd9c7; border-radius: 10px; padding: .9rem 1rem; margin-bottom: 1rem; }
+.recovery h3 { margin: 0 0 .4rem; font-size: .85rem; color: var(--orange); }
+.recovery ul { margin: 0; padding: 0; list-style: none; columns: 2; font-family: ui-monospace, Menlo, monospace; font-size: .85rem; }
+.recovery p { font-size: .78rem; color: var(--ink-soft); margin: .5rem 0 0; }
+
+/* shell */
+.shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100dvh; }
+.side { background: var(--navy); color: #c7cce0; padding: 1.25rem .9rem; display: flex; flex-direction: column; gap: .25rem; }
+.side .logo { color: #fff; font-weight: 800; letter-spacing: .03em; padding: .35rem .6rem 1rem; font-size: 1.02rem; }
+.side .logo b { color: var(--orange); }
+.side a { color: #c7cce0; text-decoration: none; padding: .5rem .6rem; border-radius: 8px; font-size: .92rem; }
+.side a.active, .side a:hover { background: rgba(255,255,255,.08); color: #fff; }
+.side .soon { opacity: .45; pointer-events: none; }
+.side .foot { margin-top: auto; font-size: .78rem; opacity: .7; padding: .6rem; }
+.main { padding: 2rem 2.25rem; }
+.main h1 { margin: 0 0 .25rem; font-size: 1.35rem; }
+.main .sub { color: var(--ink-soft); margin: 0 0 1.5rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; max-width: 760px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.2rem; }
+.card .n { font-size: 1.7rem; font-weight: 800; color: var(--blue); }
+.card .t { font-size: .82rem; color: var(--ink-soft); }
+.topbar { display: flex; justify-content: flex-end; align-items: center; gap: .75rem; margin-bottom: 1.25rem; font-size: .85rem; color: var(--ink-soft); }

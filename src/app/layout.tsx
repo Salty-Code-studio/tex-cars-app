@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 export const metadata = {
-  title: "Hardened API Starter",
-  description: "Secure-by-default Next.js Route Handlers API.",
+  title: "Tex Cars & Leasing",
+  description: "Tex Cars booking platform.",
 };
 
 // Minimal root layout so the App Router is satisfied. This starter is API-first;
