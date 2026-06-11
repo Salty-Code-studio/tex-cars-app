@@ -15,6 +15,7 @@ export const settings = pgTable("settings", {
   minRentalDays: integer("min_rental_days").notNull().default(1),
   maxRentalDays: integer("max_rental_days").notNull().default(90),
   maxAdvanceDays: integer("max_advance_days").notNull().default(365),
+  licenseRetentionDays: integer("license_retention_days").notNull().default(90), // auto-delete licence docs this long after return (spec §8/§16)
   adminAlertRecipients: jsonb("admin_alert_recipients").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [check("settings_singleton", sql`${t.id} = 1`)]);

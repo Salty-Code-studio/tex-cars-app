@@ -6,7 +6,7 @@ import { apiGet, apiPatch, api, apiDelete, type ApiError } from "../../client";
 interface Settings {
   reservationFeeCents: number; currency: string; minDriverAge: number;
   turnaroundBufferDays: number; minRentalDays: number; maxRentalDays: number;
-  maxAdvanceDays: number; adminAlertRecipients: string[];
+  maxAdvanceDays: number; licenseRetentionDays: number; adminAlertRecipients: string[];
 }
 interface Blackout { id: string; startDate: string; endDate: string; reason: string }
 
@@ -41,6 +41,7 @@ export default function SettingsPage() {
         minRentalDays: s.minRentalDays,
         maxRentalDays: s.maxRentalDays,
         maxAdvanceDays: s.maxAdvanceDays,
+        licenseRetentionDays: s.licenseRetentionDays,
         adminAlertRecipients: recipients.split(",").map((r) => r.trim()).filter(Boolean),
       });
       setS(updated);
@@ -101,6 +102,10 @@ export default function SettingsPage() {
           <label>Max days ahead a booking is allowed
             <input type="number" min="1" max="1095" value={s.maxAdvanceDays}
               onChange={(e) => setS({ ...s, maxAdvanceDays: Number(e.target.value) })} />
+          </label>
+          <label>Licence document retention (days after return)
+            <input type="number" min="1" max="3650" value={s.licenseRetentionDays}
+              onChange={(e) => setS({ ...s, licenseRetentionDays: Number(e.target.value) })} />
           </label>
           <label className="full">Admin alert recipients (comma-separated emails)
             <input value={recipients} onChange={(e) => setRecipients(e.target.value)}

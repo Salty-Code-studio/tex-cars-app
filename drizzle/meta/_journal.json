@@ -43,6 +43,13 @@
       "when": 1781202825943,
       "tag": "0005_admin_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781209181824,
+      "tag": "0006_license_retention",
+      "breakpoints": true
     }
   ]
 }
