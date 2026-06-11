@@ -1,2 +1,4 @@
 /** Single schema entry point — drizzle.config.ts and the client import from here. */
-export {};
+export * from "./fleet";
+export * from "./customers";
+export * from "./settings";
