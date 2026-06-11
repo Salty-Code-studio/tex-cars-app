@@ -32,9 +32,9 @@ async function makePendingBooking(key: string, sessionId: string) {
   return b!;
 }
 
-function paidEvent(id: string, sessionId: string, bookingId: string, over: Partial<Stripe.Checkout.Session> = {}): Stripe.Event {
+function paidEvent(id: string, sessionId: string, bookingId: string, over: Partial<Stripe.Checkout.Session> = {}, type = "checkout.session.completed"): Stripe.Event {
   return {
-    id, type: "checkout.session.completed", object: "event", api_version: null,
+    id, type, object: "event", api_version: null,
     created: 0, livemode: false, pending_webhooks: 0, request: null,
     data: { object: {
       id: sessionId, object: "checkout.session", payment_status: "paid",
@@ -42,6 +42,16 @@ function paidEvent(id: string, sessionId: string, bookingId: string, over: Parti
       metadata: { bookingId }, ...over,
     } as Stripe.Checkout.Session },
   } as Stripe.Event;
+}
+
+async function makeBookingNoPayment(key: string) {
+  const month = String(dateCursor++).padStart(2, "0");
+  const [b] = await db.insert(bookings).values({
+    vehicleId, customerId, startDate: `2027-${month}-01`, endDate: `2027-${month}-08`, bufferEndDate: `2027-${month}-09`,
+    status: "pending", priceBreakdown: breakdown, paymentOption: "reservation_fee",
+    acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: key,
+  }).returning();
+  return b!;
 }
 
 beforeAll(async () => {
@@ -99,6 +109,37 @@ describe("processStripeEvent", () => {
     expect(res.bookingConfirmed).toBe(false);
     const [after] = await db.select().from(bookings).where(eq(bookings.id, b.id));
     expect(after!.status).toBe("cancelled");
+  });
+
+  it("creates an authoritative succeeded payment row even if none existed (lost checkout insert)", async () => {
+    const b = await makeBookingNoPayment("wh-auth");
+    const res = await processStripeEvent(paidEvent("evt_auth", "cs_auth", b.id));
+    expect(res.bookingConfirmed).toBe(true);
+    const [pay] = await db.select().from(payments).where(eq(payments.stripeCheckoutSessionId, "cs_auth"));
+    expect(pay!.status).toBe("succeeded");
+    expect(pay!.bookingId).toBe(b.id);
+  });
+
+  it("confirms on a delayed-settlement async_payment_succeeded event", async () => {
+    const b = await makeBookingNoPayment("wh-async");
+    const res = await processStripeEvent(
+      paidEvent("evt_async", "cs_async", b.id, { payment_status: "unpaid" }, "checkout.session.async_payment_succeeded"),
+    );
+    expect(res.bookingConfirmed).toBe(true);
+    const [after] = await db.select().from(bookings).where(eq(bookings.id, b.id));
+    expect(after!.status).toBe("confirmed");
+  });
+
+  it("marks the payment failed on async_payment_failed without confirming", async () => {
+    const b = await makePendingBooking("wh-failed", "cs_failed");
+    const res = await processStripeEvent(
+      paidEvent("evt_failed", "cs_failed", b.id, {}, "checkout.session.async_payment_failed"),
+    );
+    expect(res.bookingConfirmed).toBeFalsy();
+    const [pay] = await db.select().from(payments).where(eq(payments.stripeCheckoutSessionId, "cs_failed"));
+    expect(pay!.status).toBe("failed");
+    const [after] = await db.select().from(bookings).where(eq(bookings.id, b.id));
+    expect(after!.status).toBe("pending");
   });
 
   it("verifies a real Stripe signature and rejects a tampered body", () => {

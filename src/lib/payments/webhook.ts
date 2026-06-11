@@ -1,9 +1,22 @@
 /**
  * Inbound Stripe webhook reducer (signature already verified by the route via
- * stripe.webhooks.constructEvent). Idempotent: a redelivered event id is a
- * no-op. Confirms a booking ONLY when a genuine paid event arrives whose amount
- * and currency match the expected charge, and only while the booking is still
- * pending (so a late/duplicate event can't resurrect a cancelled booking).
+ * stripe.webhooks.constructEvent).
+ *
+ * Money-safety properties:
+ *   - ATOMIC: the event-id dedupe claim, the payment upsert, and the booking
+ *     flip all commit in ONE transaction. If anything fails, the claim rolls
+ *     back too, so Stripe's retry re-does the work for real (no "claimed but
+ *     never confirmed" lost payments).
+ *   - AUTHORITATIVE payment record: the payment row is UPSERTED by session id,
+ *     so a confirmed booking always has a succeeded payment row even if the
+ *     checkout-time insert was lost.
+ *   - Amount/currency verified against the server-expected charge before any
+ *     confirmation.
+ *   - Confirms ONLY a still-pending booking; a surplus/orphan succeeded payment
+ *     (already-confirmed or cancelled booking) is recorded and LOUDLY flagged
+ *     for refund rather than silently swallowed.
+ *   - Handles delayed-settlement methods: async_payment_succeeded confirms,
+ *     async_payment_failed marks the payment failed.
  */
 import type Stripe from "stripe";
 import { eq, and } from "drizzle-orm";
@@ -19,64 +32,105 @@ export interface ProcessResult {
   bookingConfirmed?: boolean;
 }
 
-/** Returns true if this event id is new (claimed), false if already processed. */
-async function claimEvent(event: Stripe.Event): Promise<boolean> {
-  const db = await getDb();
-  const inserted = await db.insert(stripeWebhookEvents)
-    .values({ eventId: event.id, type: event.type })
-    .onConflictDoNothing({ target: stripeWebhookEvents.eventId })
-    .returning({ eventId: stripeWebhookEvents.eventId });
-  return inserted.length > 0;
-}
+const CONFIRM_EVENTS = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded"]);
 
 export async function processStripeEvent(event: Stripe.Event): Promise<ProcessResult> {
-  if (!(await claimEvent(event))) return { handled: true, duplicate: true };
-
-  if (event.type !== "checkout.session.completed") {
-    return { handled: true }; // acked + ignored
+  if (event.type === "checkout.session.async_payment_failed") {
+    return markSessionFailed(event);
+  }
+  if (!CONFIRM_EVENTS.has(event.type)) {
+    return { handled: true }; // acked + ignored (no side effect → safe to reprocess)
   }
 
   const session = event.data.object as Stripe.Checkout.Session;
-  if (session.payment_status !== "paid") return { handled: true };
+  // async_payment_succeeded always means paid; completed must be payment_status paid.
+  if (event.type === "checkout.session.completed" && session.payment_status !== "paid") {
+    return { handled: true };
+  }
 
   const bookingId = session.metadata?.bookingId;
   if (!bookingId) {
-    logger.warn("stripe_webhook_no_booking", { sessionId: session.id });
+    logger.warn("stripe_webhook_no_booking", { sessionId: session.id, eventId: event.id });
     return { handled: true };
   }
+
+  const paymentIntentId = typeof session.payment_intent === "string"
+    ? session.payment_intent
+    : session.payment_intent?.id ?? null;
 
   const db = await getDb();
-  const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
-  if (!booking) {
-    logger.warn("stripe_webhook_booking_missing", { bookingId });
-    return { handled: true };
-  }
+  let result: ProcessResult = { handled: true };
 
-  // Verify Stripe's paid amount/currency against what WE expect for this booking.
-  const expected = chargeForBooking(booking.paymentOption as PaymentOption, booking.priceBreakdown as QuoteBreakdown);
-  const paidAmount = session.amount_total ?? 0;
-  const paidCurrency = (session.currency ?? "").toUpperCase();
-  if (paidAmount !== expected.amountCents || paidCurrency !== expected.currency.toUpperCase()) {
-    logger.error("stripe_webhook_amount_mismatch", { bookingId, paidAmount, expected: expected.amountCents, paidCurrency });
-    return { handled: true }; // do NOT confirm on a mismatch
-  }
-
-  const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : session.payment_intent?.id ?? null;
-
-  let bookingConfirmed = false;
   await db.transaction(async (tx) => {
-    // Mark the payment row succeeded (it was created pending at checkout).
-    await tx.update(payments)
-      .set({ status: "succeeded", stripePaymentIntentId: paymentIntentId, updatedAt: new Date() })
-      .where(eq(payments.stripeCheckoutSessionId, session.id));
+    // Dedupe gate INSIDE the transaction: if the id already exists, this event
+    // was fully processed before — nothing to do.
+    const claimed = await tx.insert(stripeWebhookEvents)
+      .values({ eventId: event.id, type: event.type })
+      .onConflictDoNothing({ target: stripeWebhookEvents.eventId })
+      .returning({ eventId: stripeWebhookEvents.eventId });
+    if (claimed.length === 0) { result = { handled: true, duplicate: true }; return; }
+
+    const [booking] = await tx.select().from(bookings).where(eq(bookings.id, bookingId));
+    if (!booking) {
+      logger.warn("stripe_webhook_booking_missing", { bookingId, eventId: event.id });
+      return; // claim commits; nothing to confirm
+    }
+
+    const expected = chargeForBooking(booking.paymentOption as PaymentOption, booking.priceBreakdown as QuoteBreakdown);
+    const paidAmount = session.amount_total ?? 0;
+    const paidCurrency = (session.currency ?? "").toUpperCase();
+    if (paidAmount !== expected.amountCents || paidCurrency !== expected.currency.toUpperCase()) {
+      logger.error("stripe_webhook_amount_mismatch", { bookingId, paidAmount, expected: expected.amountCents, paidCurrency, eventId: event.id });
+      return; // do NOT confirm on a mismatch
+    }
+
+    // Upsert the payment row by session id → succeeded (authoritative record).
+    await tx.insert(payments).values({
+      bookingId: booking.id,
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId: paymentIntentId,
+      type: expected.type,
+      amountCents: expected.amountCents,
+      currency: expected.currency,
+      status: "succeeded",
+    }).onConflictDoUpdate({
+      target: payments.stripeCheckoutSessionId,
+      set: { status: "succeeded", stripePaymentIntentId: paymentIntentId, updatedAt: new Date() },
+    });
 
     // Flip pending → confirmed (guarded: only if still pending).
     const flipped = await tx.update(bookings)
       .set({ status: "confirmed", updatedAt: new Date() })
-      .where(and(eq(bookings.id, bookingId), eq(bookings.status, "pending")))
+      .where(and(eq(bookings.id, booking.id), eq(bookings.status, "pending")))
       .returning({ id: bookings.id });
-    bookingConfirmed = flipped.length > 0;
+
+    if (flipped.length > 0) {
+      result = { handled: true, bookingConfirmed: true };
+    } else {
+      // Money captured but the booking was not pending (already confirmed by
+      // another session, or cancelled) → a real payment needs manual refund.
+      logger.error("stripe_webhook_surplus_payment_needs_refund", {
+        bookingId: booking.id, bookingStatus: booking.status, paymentIntentId, sessionId: session.id, eventId: event.id,
+      });
+      result = { handled: true, bookingConfirmed: false };
+    }
   });
 
-  return { handled: true, bookingConfirmed };
+  return result;
+}
+
+async function markSessionFailed(event: Stripe.Event): Promise<ProcessResult> {
+  const session = event.data.object as Stripe.Checkout.Session;
+  const db = await getDb();
+  await db.transaction(async (tx) => {
+    const claimed = await tx.insert(stripeWebhookEvents)
+      .values({ eventId: event.id, type: event.type })
+      .onConflictDoNothing({ target: stripeWebhookEvents.eventId })
+      .returning({ eventId: stripeWebhookEvents.eventId });
+    if (claimed.length === 0) return;
+    await tx.update(payments)
+      .set({ status: "failed", updatedAt: new Date() })
+      .where(eq(payments.stripeCheckoutSessionId, session.id));
+  });
+  return { handled: true };
 }

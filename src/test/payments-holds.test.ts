@@ -62,6 +62,15 @@ describe("expireStaleHolds", () => {
     expect(after!.status).toBe("pending");
   });
 
+  it("leaves an old hold that is mid-checkout (a PENDING payment) alone", async () => {
+    const old = new Date(Date.now() - 60 * 60_000);
+    const b = await mkBooking("hold-paying", old, "pending");
+    await db.insert(payments).values({ bookingId: b.id, type: "reservation_fee", amountCents: 3000, currency: "USD", status: "pending" });
+    await expireStaleHolds(30);
+    const [after] = await db.select().from(bookings).where(eq(bookings.id, b.id));
+    expect(after!.status).toBe("pending"); // never strand a customer mid-payment
+  });
+
   it("never touches a confirmed booking", async () => {
     const old = new Date(Date.now() - 60 * 60_000);
     const b = await mkBooking("hold-confirmed", old, "confirmed");

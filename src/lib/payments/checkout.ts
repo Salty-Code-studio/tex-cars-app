@@ -5,7 +5,7 @@
  * hosted Checkout page handles all card data. Dynamic payment methods (no
  * payment_method_types) maximise conversion.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { bookings, payments, vehicles } from "@/lib/db/schema";
 import { Errors } from "@/lib/http/errors";
@@ -23,6 +23,12 @@ export async function createBookingCheckout(bookingId: string, origin: string): 
   const [booking] = await db.select().from(bookings).where(eq(bookings.id, bookingId));
   if (!booking) throw Errors.notFound("Booking not found");
   if (booking.status !== "pending") throw Errors.conflict("This booking is no longer awaiting payment");
+
+  // Never start a second checkout once a payment has already succeeded — this is
+  // the front-line guard against a double charge.
+  const [paid] = await db.select({ id: payments.id }).from(payments)
+    .where(and(eq(payments.bookingId, booking.id), eq(payments.status, "succeeded")));
+  if (paid) throw Errors.conflict("This booking is already paid");
 
   const breakdown = booking.priceBreakdown as QuoteBreakdown;
   const charge = chargeForBooking(booking.paymentOption as PaymentOption, breakdown);
