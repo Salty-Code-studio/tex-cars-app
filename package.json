@@ -8,14 +8,17 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "predev": "node --import tsx scripts/check-env.ts",
+    "predev": "node --import tsx --env-file-if-exists=.env.local scripts/check-env.ts",
     "dev": "next dev",
-    "prebuild": "node --import tsx scripts/check-env.ts",
+    "prebuild": "node --import tsx --env-file-if-exists=.env.local scripts/check-env.ts",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --import tsx --env-file-if-exists=.env.local -e \"import('./src/lib/db/migrate.ts').then(m => m.runMigrations()).then(() => console.log('migrations applied'))\"",
+    "db:seed": "node --import tsx --env-file-if-exists=.env.local scripts/seed.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.2",

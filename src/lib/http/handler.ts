@@ -22,14 +22,16 @@ type Handler<P> = (
 ) => Promise<NextResponse> | NextResponse;
 
 export function withRoute<P = Record<string, string>>(handler: Handler<P>) {
-  return async (req: Request, routeCtx?: RouteContext<P>): Promise<NextResponse> => {
+  // Next 15 type-validates the exact handler signature: the context arg must be
+  // declared non-optional (Next always passes one), so we guard at runtime only.
+  return async (req: Request, routeCtx: RouteContext<P>): Promise<NextResponse> => {
     const requestId = newRequestId();
     const started = Date.now();
     const url = new URL(req.url);
 
     let response: NextResponse;
     try {
-      const params = routeCtx ? await routeCtx.params : ({} as P);
+      const params = routeCtx?.params ? await routeCtx.params : ({} as P);
       response = await handler(req, { params, requestId });
     } catch (err) {
       response = toErrorResponse(err, requestId);
