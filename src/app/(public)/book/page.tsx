@@ -84,6 +84,13 @@ export default function BookPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data?.error?.message ?? "We could not create your booking."); setBusy(false); return; }
+      // Hand off to Stripe Checkout to pay the reservation fee / deposit.
+      const checkout = await fetch(`/api/bookings/${data.id}/checkout`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      });
+      const co = await checkout.json();
+      if (checkout.ok && co.url) { window.location.href = co.url; return; }
+      // Booking is held even if checkout couldn't start; show the confirmation.
       window.location.href = `/book/confirmation?id=${data.id}`;
     } catch { setError("Network error. Please try again."); setBusy(false); }
   }
@@ -193,8 +200,8 @@ export default function BookPage() {
               <span>I accept the <a href="/policies/rental-terms" target="_blank">rental terms</a>, <a href="/policies/cancellation" target="_blank">cancellation policy</a>, and <a href="/policies/privacy" target="_blank">privacy policy</a>.</span>
             </label>
 
-            <button className="btn" disabled={busy || !acceptTerms || !(avail?.available)}>{busy ? "Reserving…" : "Reserve my car"}</button>
-            <p className="note">Card payment lands in the next release. Your booking is held as pending for now.</p>
+            <button className="btn" disabled={busy || !acceptTerms || !(avail?.available)}>{busy ? "Reserving…" : "Reserve & pay"}</button>
+            <p className="note">You&apos;ll be taken to our secure Stripe checkout to pay the {paymentOption === "full_deposit" ? "deposit" : "reservation fee"}.</p>
             <p className="msg err">{error}</p>
           </>
         )}
