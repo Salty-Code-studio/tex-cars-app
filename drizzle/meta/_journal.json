@@ -29,6 +29,20 @@
       "when": 1781200771442,
       "tag": "0003_licenses_payments_admin_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781202783948,
+      "tag": "0004_admin_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781202825943,
+      "tag": "0005_admin_auth",
+      "breakpoints": true
     }
   ]
 }
