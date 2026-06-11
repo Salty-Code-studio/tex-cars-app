@@ -8,6 +8,20 @@
       "when": 1781200438581,
       "tag": "0000_fleet_customers_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781200530794,
+      "tag": "0001_bookings_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781200531217,
+      "tag": "0002_booking_overlap_guard",
+      "breakpoints": true
     }
   ]
 }

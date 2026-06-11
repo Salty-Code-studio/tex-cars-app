@@ -12,27 +12,33 @@
  * SECURITY: all access goes through Drizzle's typed builder — parameterized
  * queries only (OWASP A03:2021). Never interpolate user input into raw SQL.
  */
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { env } from "@/env";
 import * as schema from "./schema";
 
-async function createDb() {
+/** The common Postgres interface both drivers satisfy. Using one concrete type
+ *  (instead of a union) keeps builder methods like `.returning()` callable. */
+export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
+
+async function createDb(): Promise<Db> {
   if (env.DATABASE_URL.startsWith("pglite://")) {
     const { PGlite } = await import("@electric-sql/pglite");
     const { btree_gist } = await import("@electric-sql/pglite/contrib/btree_gist");
     const { drizzle } = await import("drizzle-orm/pglite");
     const target = env.DATABASE_URL.slice("pglite://".length);
-    const client = new PGlite(target === "memory" ? undefined : target, {
+    // NOTE: must use the options-object form — new PGlite(undefined, opts)
+    // silently ignores opts, and the btree_gist extension never registers.
+    const client = new PGlite({
+      ...(target === "memory" ? {} : { dataDir: target }),
       extensions: { btree_gist },
     });
-    return drizzle(client, { schema });
+    return drizzle(client, { schema }) as unknown as Db;
   }
   const { drizzle } = await import("drizzle-orm/postgres-js");
   const postgres = (await import("postgres")).default;
   const client = postgres(env.DATABASE_URL, { max: 10, prepare: false });
-  return drizzle(client, { schema });
+  return drizzle(client, { schema }) as unknown as Db;
 }
-
-export type Db = Awaited<ReturnType<typeof createDb>>;
 
 let dbPromise: Promise<Db> | null = null;
 
