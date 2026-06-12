@@ -32,12 +32,21 @@ export function loginCodeEmail(args: { code: string; link: string }): RenderedEm
   };
 }
 
-export function bookingConfirmedEmail(args: { vehicleName: string; startDate: string; endDate: string; totalCents: number; currency: string }): RenderedEmail {
+export function bookingConfirmedEmail(args: {
+  vehicleName: string; startDate: string; endDate: string;
+  rentalTotalCents: number; currency: string;
+  amountPaidCents?: number; chargeType?: "reservation_fee" | "deposit";
+}): RenderedEmail {
+  const paidLine = args.amountPaidCents !== undefined
+    ? `Paid now: <strong>${money(args.amountPaidCents, args.currency)}</strong> ${args.chargeType === "deposit" ? "(refundable deposit)" : "(reservation fee)"}<br>`
+    : "";
   return {
     subject: `Your ${args.vehicleName} booking is confirmed`,
     html: shell("Booking confirmed", `
       <p>Thanks, your payment came through and your car is reserved.</p>
-      <p><strong>${args.vehicleName}</strong><br>${args.startDate} to ${args.endDate}<br>Rental total ${money(args.totalCents, args.currency)}</p>
+      <p><strong>${args.vehicleName}</strong><br>${args.startDate} to ${args.endDate}</p>
+      <p>${paidLine}Rental total: ${money(args.rentalTotalCents, args.currency)}<br>
+      <span style="color:#828aa6;font-size:13px">We settle the balance with you at pickup.</span></p>
       <p>We will reach out on WhatsApp to arrange delivery. See you soon.</p>`),
   };
 }

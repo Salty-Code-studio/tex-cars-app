@@ -5,7 +5,7 @@ import {
 
 const all = [
   loginCodeEmail({ code: "482917", link: "https://x/verify?code=482917" }),
-  bookingConfirmedEmail({ vehicleName: "Hyundai Creta", startDate: "2026-07-01", endDate: "2026-07-08", totalCents: 34800, currency: "USD" }),
+  bookingConfirmedEmail({ vehicleName: "Hyundai Creta", startDate: "2026-07-01", endDate: "2026-07-08", rentalTotalCents: 34800, amountPaidCents: 4000, chargeType: "reservation_fee", currency: "USD" }),
   bookingCancelledEmail({ vehicleName: "Kia Picanto", startDate: "2026-07-01", endDate: "2026-07-05" }),
   adminNewBookingEmail({ vehicleName: "Kia Sportage", startDate: "2026-07-01", endDate: "2026-07-08", customerEmail: "a@b.com", paymentOption: "reservation_fee" }),
   adminPaymentEmail({ vehicleName: "Kia Sportage", amountCents: 4000, currency: "USD", customerEmail: "a@b.com" }),
@@ -14,7 +14,9 @@ const all = [
 describe("email templates", () => {
   it("set a subject and render the key facts", () => {
     expect(loginCodeEmail({ code: "482917", link: "https://x" }).html).toContain("482917");
-    expect(bookingConfirmedEmail({ vehicleName: "Hyundai Creta", startDate: "2026-07-01", endDate: "2026-07-08", totalCents: 34800, currency: "USD" }).html).toContain("USD 348.00");
+    const conf = bookingConfirmedEmail({ vehicleName: "Hyundai Creta", startDate: "2026-07-01", endDate: "2026-07-08", rentalTotalCents: 34800, amountPaidCents: 4000, chargeType: "reservation_fee", currency: "USD" }).html;
+    expect(conf).toContain("USD 40.00");   // what they actually paid (reservation fee)
+    expect(conf).toContain("USD 348.00");  // rental total, clearly labelled
     expect(adminPaymentEmail({ vehicleName: "X", amountCents: 4000, currency: "USD", customerEmail: "a@b.com" }).subject).toContain("USD 40.00");
   });
 

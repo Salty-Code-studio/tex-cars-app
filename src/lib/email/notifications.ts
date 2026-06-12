@@ -59,7 +59,8 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
       to: ctx.customerEmail, type: "booking_confirmed",
       ...bookingConfirmedEmail({
         vehicleName: ctx.vehicleName, startDate: ctx.booking.startDate, endDate: ctx.booking.endDate,
-        totalCents: breakdown.subtotalCents, currency: breakdown.currency,
+        rentalTotalCents: breakdown.subtotalCents, currency: pay?.currency ?? breakdown.currency,
+        amountPaidCents: pay?.amountCents, chargeType: pay?.type,
       }),
     });
 

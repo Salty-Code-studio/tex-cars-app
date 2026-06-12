@@ -23,7 +23,9 @@ export const POST = withRoute(async (req) => {
   enforceRateLimit(req, "auth", `login-request:${email}`);
 
   const { code } = await issueLoginToken(email);
-  const link = `${env.APP_ORIGIN}/account/verify?email=${encodeURIComponent(email)}&code=${code}`;
+  // Code travels in the URL FRAGMENT (#), which browsers never send to the
+  // server or leak via Referer — so the login secret stays out of access logs.
+  const link = `${env.APP_ORIGIN}/account/verify#email=${encodeURIComponent(email)}&code=${code}`;
   await sendAndLog({ to: email, type: "login_code", ...loginCodeEmail({ code, link }) });
 
   // Dev/preview affordance ONLY: with no email provider configured and not in
