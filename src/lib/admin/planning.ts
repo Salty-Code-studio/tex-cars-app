@@ -12,12 +12,17 @@ export interface PlanningBar {
   start: string; // YYYY-MM-DD
   end: string;   // exclusive
   status: string;
+  source: string; // online | manual
   label: string;
+  notes: string | null;
+}
+export interface PlanningBlock {
+  id: string; start: string; end: string; type: string; reason: string;
 }
 export interface PlanningVehicle {
-  id: string; name: string; slug: string; class: string;
+  id: string; name: string; slug: string; plate: string; class: string;
   bookings: PlanningBar[];
-  blocks: { id: string; start: string; end: string; reason: string }[];
+  blocks: PlanningBlock[];
 }
 export interface PlanningCategory { class: string; vehicles: PlanningVehicle[] }
 export interface Planning {
@@ -49,7 +54,8 @@ export async function getPlanning(from: string, to: string): Promise<Planning> {
 
   const bookingRows = await db.select({
     id: bookings.id, vehicleId: bookings.vehicleId, start: bookings.startDate, end: bookings.endDate,
-    status: bookings.status, customerName: customers.name, customerEmail: customers.email,
+    status: bookings.status, source: bookings.source, notes: bookings.notes,
+    customerName: customers.name, customerEmail: customers.email,
   }).from(bookings)
     .innerJoin(customers, eq(bookings.customerId, customers.id))
     .where(and(
@@ -66,15 +72,18 @@ export async function getPlanning(from: string, to: string): Promise<Planning> {
 
   const byVehicle = new Map<string, PlanningVehicle>();
   for (const v of vehicleRows) {
-    byVehicle.set(v.id, { id: v.id, name: v.name, slug: v.slug, class: v.class, bookings: [], blocks: [] });
+    byVehicle.set(v.id, { id: v.id, name: v.name, slug: v.slug, plate: v.plate, class: v.class, bookings: [], blocks: [] });
   }
   for (const b of bookingRows) {
     const pv = byVehicle.get(b.vehicleId);
-    if (pv) pv.bookings.push({ id: b.id, start: b.start, end: b.end, status: b.status, label: b.customerName || b.customerEmail.split("@")[0]! });
+    if (pv) pv.bookings.push({
+      id: b.id, start: b.start, end: b.end, status: b.status, source: b.source,
+      label: b.customerName || b.customerEmail.split("@")[0]!, notes: b.notes,
+    });
   }
   for (const bl of blockRows) {
     const pv = byVehicle.get(bl.vehicleId);
-    if (pv) pv.blocks.push({ id: bl.id, start: bl.startDate, end: bl.endDate, reason: bl.reason });
+    if (pv) pv.blocks.push({ id: bl.id, start: bl.startDate, end: bl.endDate, type: bl.type, reason: bl.reason });
   }
 
   // Group into ordered categories.
