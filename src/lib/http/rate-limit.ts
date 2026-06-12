@@ -75,13 +75,31 @@ function hit(key: string, max: number, windowSeconds: number): RateLimitResult {
  * operator sets EXCLUSIVELY when the app sits behind a reverse proxy / platform
  * edge that OVERWRITES (not appends) the header. We then read the FIRST hop.
  *
- * When `TRUST_PROXY=false` (the secure default) we IGNORE the forwarding
- * headers and fall back to a single shared "unknown" bucket. That is
- * fail-closed: every direct client shares one strict budget rather than each
- * minting its own by forging a header. Operators running without a trusted
- * proxy should put a real proxy in front (then enable TRUST_PROXY) for
- * per-client fairness.
+ * When `TRUST_PROXY=false` (the secure default) we IGNORE the spoofable
+ * forwarding headers and fall back to a coarse per-client FINGERPRINT derived
+ * from stable request headers (UA + Accept-Language + Accept-Encoding). The
+ * earlier design used ONE shared "unknown" bucket, which was fail-closed
+ * against brute-force bypass but let a single client exhaust the auth bucket
+ * and lock EVERY admin/customer out of login (a trivial DoS). The fingerprint
+ * keeps distinct real clients in distinct buckets so that can't happen, while
+ * still not trusting network headers. It is deliberately weak — the HARD
+ * brute-force control is the per-ACCOUNT exponential lockout in loginAdmin;
+ * this IP-tier limit is defense-in-depth. Operators should still front the app
+ * with a real proxy and enable TRUST_PROXY for true per-IP limiting.
  */
+function fingerprint(req: Request): string {
+  const ua = req.headers.get("user-agent") ?? "";
+  const lang = req.headers.get("accept-language") ?? "";
+  const enc = req.headers.get("accept-encoding") ?? "";
+  const s = `${ua}|${lang}|${enc}`;
+  let h = 0x811c9dc5; // FNV-1a (no crypto import → works in any runtime)
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return "fp-" + (h >>> 0).toString(36);
+}
+
 export function clientIdentifier(req: Request): string {
   if (env.TRUST_PROXY) {
     const xff = req.headers.get("x-forwarded-for");
@@ -92,7 +110,7 @@ export function clientIdentifier(req: Request): string {
     const realIp = req.headers.get("x-real-ip");
     if (realIp) return realIp.trim();
   }
-  return "unknown";
+  return fingerprint(req);
 }
 
 export type LimitTier = "global" | "auth";

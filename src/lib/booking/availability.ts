@@ -61,19 +61,20 @@ export async function checkAvailability(
   if (!vehicle) return { available: false, reason: "Vehicle not found" };
   if (vehicle.status !== "active") return { available: false, reason: "Vehicle is not available" };
 
-  // Buffer: a prior rental needs `buffer` days of cleaning after its return, so
-  // treat each booking as occupying [start, end + buffer). We widen the QUERY
-  // window by the buffer on both sides to catch neighbours.
-  const buffer = settings.turnaroundBufferDays;
-  const windowStart = addDays(startDate, -buffer);
-  const windowEnd = addDays(endDate, buffer);
+  // Mirror the DB exclusion rule EXACTLY: it overlaps daterange(start, bufferEnd)
+  // using each row's OWN stored buffer_end_date (frozen at its creation). The new
+  // booking will store bufferEnd = end + the CURRENT buffer. Two ranges overlap
+  // iff existing.start < newBufferEnd AND existing.bufferEnd > newStart. Comparing
+  // against each row's stored bufferEnd (not a freshly re-derived buffer) means
+  // raising turnaroundBufferDays after older bookings exist no longer over-rejects
+  // a slot the authoritative constraint would actually accept.
+  const newBufferEnd = addDays(endDate, settings.turnaroundBufferDays);
 
   const clashing = await db.select({ id: bookings.id }).from(bookings).where(and(
     eq(bookings.vehicleId, vehicleId),
     inArray(bookings.status, ["pending", "confirmed"]),
-    // ranges overlap: existing.start < windowEnd AND existing.end > windowStart
-    lt(bookings.startDate, windowEnd),
-    gt(bookings.endDate, windowStart),
+    lt(bookings.startDate, newBufferEnd),
+    gt(bookings.bufferEndDate, startDate),
   )).limit(1);
   if (clashing.length > 0) return { available: false, reason: "Those dates are already booked" };
 

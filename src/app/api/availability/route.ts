@@ -9,14 +9,15 @@ import { getDb } from "@/lib/db/client";
 import { vehicles } from "@/lib/db/schema";
 import { getSettings } from "@/lib/admin/settings";
 import { checkAvailability } from "@/lib/booking/availability";
+import { isoDate } from "@/lib/validation/iso-date";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const QuerySchema = z.object({
   vehicle: z.string().trim().min(1).max(80),
-  pickup: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  return: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  pickup: isoDate,
+  return: isoDate,
 });
 
 /** GET /api/availability?vehicle=slug&pickup&return */

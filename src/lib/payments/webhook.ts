@@ -24,6 +24,7 @@ import { getDb } from "@/lib/db/client";
 import { bookings, payments, stripeWebhookEvents } from "@/lib/db/schema";
 import { chargeForBooking, type PaymentOption } from "@/lib/payments/charge";
 import type { QuoteBreakdown } from "@/lib/booking/quote";
+import { getStripe } from "@/lib/payments/stripe-client";
 import { logger } from "@/lib/logger";
 
 export interface ProcessResult {
@@ -36,7 +37,12 @@ export interface ProcessResult {
 const CONFIRM_EVENTS = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded"]);
 
 export async function processStripeEvent(event: Stripe.Event): Promise<ProcessResult> {
-  if (event.type === "checkout.session.async_payment_failed") {
+  // async_payment_failed AND expired both mean "this session will never pay":
+  // mark its payment row failed so the booking is no longer protected from
+  // hold-expiry. Without the expired case an abandoned checkout leaves a stuck
+  // 'pending' payment that pins the car's dates forever (expireStaleHolds skips
+  // any booking with a non-failed payment).
+  if (event.type === "checkout.session.async_payment_failed" || event.type === "checkout.session.expired") {
     return markSessionFailed(event);
   }
   if (!CONFIRM_EVENTS.has(event.type)) {
@@ -61,6 +67,10 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
 
   const db = await getDb();
   let result: ProcessResult = { handled: true };
+  // A surplus capture (paid against a booking that is no longer pending) is
+  // refunded AFTER the transaction commits — never do Stripe network I/O while
+  // holding a DB transaction open.
+  let surplusRefund: { paymentIntentId: string; sessionId: string } | null = null;
 
   await db.transaction(async (tx) => {
     // Dedupe gate INSIDE the transaction: if the id already exists, this event
@@ -109,13 +119,28 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
       result = { handled: true, bookingConfirmed: true, bookingId: booking.id };
     } else {
       // Money captured but the booking was not pending (already confirmed by
-      // another session, or cancelled) → a real payment needs manual refund.
+      // another session, or cancelled) → a real surplus charge. Flag it AND
+      // queue an automatic refund once the transaction commits.
       logger.error("stripe_webhook_surplus_payment_needs_refund", {
         bookingId: booking.id, bookingStatus: booking.status, paymentIntentId, sessionId: session.id, eventId: event.id,
       });
+      if (paymentIntentId) surplusRefund = { paymentIntentId, sessionId: session.id };
       result = { handled: true, bookingConfirmed: false };
     }
   });
+
+  if (surplusRefund) {
+    const { paymentIntentId: pi, sessionId } = surplusRefund;
+    try {
+      await getStripe().refunds.create({ payment_intent: pi });
+      logger.warn("stripe_webhook_surplus_refunded", { paymentIntentId: pi, sessionId, eventId: event.id });
+    } catch (e) {
+      // Best-effort: if the refund call fails, the surplus stays flagged in the
+      // logs above for manual handling. Never throw — the booking is already
+      // correctly confirmed/cancelled and the event must still be acked.
+      logger.error("stripe_webhook_surplus_refund_failed", { paymentIntentId: pi, sessionId, eventId: event.id, error: String(e) });
+    }
+  }
 
   return result;
 }

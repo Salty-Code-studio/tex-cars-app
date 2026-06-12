@@ -23,7 +23,12 @@ export interface AdminContext {
 }
 
 export interface RequireAdminOptions {
-  /** Admit a session that still owes the TOTP step (MFA endpoints only). */
+  /**
+   * Admit a session that is NOT yet fully second-factor-authenticated — either
+   * it still owes the TOTP step (mfaPending) OR the admin has never enrolled MFA
+   * (mfaEnabled=false). Granted ONLY to the MFA enroll/verify + me/logout
+   * endpoints, so every other admin route stays two-factor by construction.
+   */
   allowMfaPending?: boolean;
   roles?: AdminRole[];
 }
@@ -47,6 +52,14 @@ export async function requireAdmin(
   if (!admin) throw Errors.unauthorized("Account no longer exists");
   if (admin.lockedUntil && admin.lockedUntil.getTime() > Date.now()) {
     throw Errors.unauthorized("Account is locked");
+  }
+  // MFA is mandatory (spec §4). A never-enrolled admin holds a non-pending
+  // session after first-factor login, so without this the shell's client-side
+  // redirect would be the ONLY enrollment gate — leaving every /api/admin/**
+  // mutation reachable with password alone. Enforce it at the guard, the real
+  // boundary: block until enrolled, except on the enroll/me/logout endpoints.
+  if (!admin.mfaEnabled && !opts.allowMfaPending) {
+    throw Errors.unauthorized("Multi-factor authentication enrollment required");
   }
 
   const roles = opts.roles ?? ["owner", "staff"];

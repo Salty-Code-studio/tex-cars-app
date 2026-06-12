@@ -4,11 +4,10 @@ import { getDb } from "@/lib/db/client";
 import { vehicles, availabilityBlocks } from "@/lib/db/schema";
 import { centsField, optionalCentsField } from "@/lib/admin/money";
 import { Errors } from "@/lib/http/errors";
+import { isoDate } from "@/lib/validation/iso-date";
 
 export type Vehicle = typeof vehicles.$inferSelect;
 export type AvailabilityBlock = typeof availabilityBlocks.$inferSelect;
-
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD");
 
 export const VehicleCreateSchema = z.object({
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be kebab-case").max(80),

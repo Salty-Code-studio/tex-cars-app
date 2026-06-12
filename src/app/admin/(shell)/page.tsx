@@ -82,14 +82,20 @@ export default function AdminDashboard() {
   function beginGesture(e: ReactPointerEvent, trackEl: HTMLElement, g: Gesture) {
     trackRectRef.current = trackEl.getBoundingClientRect();
     gestureRef.current = g;
-    const onMove = (ev: PointerEvent) => handleMove(ev);
-    const onUp = (ev: PointerEvent) => {
+    const cleanup = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      handleUp(ev);
+      window.removeEventListener("pointercancel", onCancel);
     };
+    const onMove = (ev: PointerEvent) => handleMove(ev);
+    const onUp = (ev: PointerEvent) => { cleanup(); handleUp(ev); };
+    // If the browser steals the gesture (scroll/pan takeover, multi-touch, app
+    // switch) a pointercancel fires instead of pointerup. Without this the move
+    // listener would leak and gestureRef would stay stuck-truthy, freezing clicks.
+    const onCancel = () => { cleanup(); gestureRef.current = null; setSel(null); setMoveCand(null); };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
   }
 
   function handleMove(ev: PointerEvent) {
@@ -124,12 +130,18 @@ export default function AdminDashboard() {
       setSel(null);
       setPopover({ kind: "create", vehicleId: g.vehicleId, plate: g.plate, name: g.name, startDate: addDays(from, s), endDate: addDays(from, eDay), x: ev.clientX, y: ev.clientY });
     } else {
-      const cand = moveCand;
       setMoveCand(null);
-      if (!g.moved || !cand) return; // a plain click is handled by the bar's onClick (detail popover)
-      if (cand.vehicleId === g.originVehicleId && cand.startDate === g.origStart) return; // unchanged
-      const body: Record<string, string> = { startDate: cand.startDate, endDate: cand.endDate };
-      if (cand.vehicleId !== g.originVehicleId) body.vehicleId = cand.vehicleId;
+      if (!g.moved) return; // a plain click is handled by the bar's onClick (detail popover)
+      // Recompute the drop position from the gesture ref + this event — NOT from
+      // the moveCand React state, which is stale-null inside the pointer-down
+      // closure that registered this listener (the ghost state never reaches here).
+      const cur = dayAt(ev.clientX);
+      const newStart = addDays(from, dayIdx(from, g.origStart) + (cur - g.grabDay));
+      const newEnd = addDays(newStart, g.lenDays);
+      const veh = vehicleAt(ev.clientX, ev.clientY) ?? g.originVehicleId;
+      if (veh === g.originVehicleId && newStart === g.origStart) return; // unchanged → no-op
+      const body: Record<string, string> = { startDate: newStart, endDate: newEnd };
+      if (veh !== g.originVehicleId) body.vehicleId = veh;
       try {
         await apiPatch(`/api/admin/bookings/${g.bookingId}/move`, body);
         setMsg("Moved.");

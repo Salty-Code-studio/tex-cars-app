@@ -5,6 +5,7 @@ import { vehicles, customers, bookings } from "@/lib/db/schema";
 import { Errors } from "@/lib/http/errors";
 import { translateDbError } from "@/lib/db/errors";
 import { getSettings } from "@/lib/admin/settings";
+import { isoDate } from "@/lib/validation/iso-date";
 
 /**
  * Walk-in / phone bookings made at the desk. These skip the public booking
@@ -16,8 +17,8 @@ import { getSettings } from "@/lib/admin/settings";
  */
 export const ManualBookingSchema = z.object({
   vehicleId: z.string().uuid(),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD"),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD"),
+  startDate: isoDate,
+  endDate: isoDate,
   customerName: z.string().trim().min(1).max(120),
   customerPhone: z.string().trim().max(40).default(""),
   customerEmail: z.string().trim().toLowerCase().email().max(254).optional(),

@@ -25,6 +25,12 @@ export function translateDbError(e: unknown): AppError | null {
       return Errors.badRequest("A referenced record does not exist");
     case "23514": // check_violation
       return Errors.badRequest("A value is out of its allowed range");
+    case "22008": // datetime_field_overflow (e.g. an impossible calendar date)
+    case "22007": // invalid_datetime_format
+      return Errors.badRequest("That date is not valid");
+    case "40001": // serialization_failure
+    case "40P01": // deadlock_detected (concurrent locks acquired in opposite order)
+      return Errors.conflict("That request collided with another, please try again");
     default:
       return null;
   }

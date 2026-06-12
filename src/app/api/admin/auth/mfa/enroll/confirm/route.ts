@@ -24,7 +24,7 @@ const BodySchema = z.object({ code: z.string().trim().max(16) }).strict();
  */
 export const POST = withRoute(async (req) => {
   await enforceRateLimit(req, "auth", "admin-mfa-confirm");
-  const { admin, session } = await requireAdmin(req);
+  const { admin, session } = await requireAdmin(req, { allowMfaPending: true });
   if (admin.mfaEnabled) throw Errors.conflict("MFA is already enrolled");
   if (!admin.totpSecretEnc) throw Errors.badRequest("Enrollment has not been started");
 

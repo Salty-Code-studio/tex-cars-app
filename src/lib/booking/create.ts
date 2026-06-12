@@ -21,11 +21,12 @@ import { getLatestPolicy } from "@/lib/admin/policies";
 import { rentalDays, quote, type QuoteBreakdown } from "@/lib/booking/quote";
 import { validateDates, checkAvailability } from "@/lib/booking/availability";
 import { LicenseSchema, validateLicense, encryptLicense } from "@/lib/booking/license";
+import { isoDate } from "@/lib/validation/iso-date";
 
 export const BookingCreateSchema = z.object({
   vehicleSlug: z.string().trim().min(1).max(80),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startDate: isoDate,
+  endDate: isoDate,
   customer: z.object({
     email: z.string().trim().toLowerCase().email().max(254),
     name: z.string().trim().min(1).max(120),
@@ -82,10 +83,13 @@ export async function createBooking(input: BookingCreateInput, today: string): P
 
   // Dedup: the same add-on sent twice in one request is ONE line of summed qty,
   // so a duplicate can't sneak past the per-entry stock check.
+  // Sorted by addOnId so the FOR UPDATE loop below acquires row locks in a
+  // GLOBAL deterministic order: two concurrent bookings for the same add-ons in
+  // opposite request order can never form a lock cycle (deadlock 40P01).
   const requestedAddOns = Array.from(
     input.addOns.reduce((m, a) => m.set(a.addOnId, (m.get(a.addOnId) ?? 0) + a.qty), new Map<string, number>()),
     ([addOnId, qty]) => ({ addOnId, qty }),
-  );
+  ).sort((a, b) => (a.addOnId < b.addOnId ? -1 : a.addOnId > b.addOnId ? 1 : 0));
   const addOnRows = requestedAddOns.length
     ? await db.select().from(addOns).where(inArray(addOns.id, requestedAddOns.map((a) => a.addOnId)))
     : [];

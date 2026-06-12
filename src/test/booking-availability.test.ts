@@ -41,8 +41,12 @@ describe("checkAvailability", () => {
   });
 
   it("is unavailable when a booking overlaps", async () => {
+    // bufferEndDate = endDate + 1-day turnaround, exactly as createBooking stores
+    // it. checkAvailability mirrors the DB exclusion constraint by overlapping
+    // each row on its OWN stored bufferEndDate (so raising the global buffer
+    // later never retro-blocks a slot the constraint would still accept).
     await db.insert(bookings).values({
-      vehicleId, customerId, startDate: "2026-08-01", endDate: "2026-08-10", bufferEndDate: "2026-08-10", status: "confirmed",
+      vehicleId, customerId, startDate: "2026-08-01", endDate: "2026-08-10", bufferEndDate: "2026-08-11", status: "confirmed",
       priceBreakdown: {}, paymentOption: "reservation_fee", acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: "av-k1",
     });
     expect((await checkAvailability(vehicleId, "2026-08-05", "2026-08-12", settings)).available).toBe(false);

@@ -35,6 +35,26 @@ export async function createBookingCheckout(bookingId: string, origin: string): 
   const [vehicle] = await db.select({ name: vehicles.name }).from(vehicles).where(eq(vehicles.id, booking.vehicleId));
 
   const stripe = getStripe();
+
+  // At most ONE payable session per booking. Reopening checkout (second tab, or
+  // abandon-and-return) would otherwise leave several live sessions, and a
+  // customer who paid two of them gets double-charged with only a logged flag.
+  // Expire every prior still-open session before opening a new one. If a prior
+  // session can't be expired it is already completing/paid → refuse rather than
+  // risk a second charge (the succeeded-guard above plus the webhook resolve it).
+  const livePayments = await db.select({ id: payments.id, sid: payments.stripeCheckoutSessionId })
+    .from(payments)
+    .where(and(eq(payments.bookingId, booking.id), eq(payments.status, "pending")));
+  for (const p of livePayments) {
+    if (!p.sid) continue;
+    try {
+      await stripe.checkout.sessions.expire(p.sid);
+      await db.update(payments).set({ status: "failed", updatedAt: new Date() }).where(eq(payments.id, p.id));
+    } catch {
+      throw Errors.conflict("A payment for this booking is already in progress");
+    }
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: "payment",
     // Omit payment_method_types → dynamic payment methods (Stripe best practice).

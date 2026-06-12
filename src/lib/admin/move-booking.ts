@@ -5,6 +5,7 @@ import { bookings, vehicles } from "@/lib/db/schema";
 import { Errors } from "@/lib/http/errors";
 import { translateDbError } from "@/lib/db/errors";
 import { getSettings } from "@/lib/admin/settings";
+import { isoDate } from "@/lib/validation/iso-date";
 
 /**
  * Drag-to-move on the ops board. Any subset of {vehicleId, startDate, endDate}
@@ -15,8 +16,8 @@ import { getSettings } from "@/lib/admin/settings";
  */
 export const MoveSchema = z.object({
   vehicleId: z.string().uuid().optional(),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD").optional(),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD").optional(),
+  startDate: isoDate.optional(),
+  endDate: isoDate.optional(),
 }).strict();
 export type MoveInput = z.infer<typeof MoveSchema>;
 

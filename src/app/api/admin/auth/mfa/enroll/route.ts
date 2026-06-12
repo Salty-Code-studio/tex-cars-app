@@ -25,7 +25,7 @@ const RECOVERY_CODE_COUNT = 8;
  */
 export const POST = withRoute(async (req) => {
   await enforceRateLimit(req, "auth", "admin-mfa-enroll");
-  const { admin } = await requireAdmin(req);
+  const { admin } = await requireAdmin(req, { allowMfaPending: true });
   if (admin.mfaEnabled) throw Errors.conflict("MFA is already enrolled");
 
   const secret = generateTotpSecret();
