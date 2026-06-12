@@ -142,6 +142,15 @@ const EnvSchema = z
       .transform((v) => v === "true"),
 
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+
+    // Email (Resend) — OPTIONAL. With no key, transactional email is skipped
+    // and logged; bookings and boot are never blocked by missing email config.
+    RESEND_API_KEY: z
+      .string()
+      .refine((v) => v === "" || /^re_[A-Za-z0-9]+$/.test(v), { message: "RESEND_API_KEY must be a re_ key or empty" })
+      .optional()
+      .default(""),
+    EMAIL_FROM: z.string().optional().default("Tex Cars <bookings@tex-cars.com>"),
   });
 
 export type Env = z.infer<typeof EnvSchema>;
