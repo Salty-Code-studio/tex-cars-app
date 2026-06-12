@@ -4,6 +4,7 @@ import { env } from "@/env";
 import { logger } from "@/lib/logger";
 import { getStripe } from "@/lib/payments/stripe-client";
 import { processStripeEvent } from "@/lib/payments/webhook";
+import { notifyBookingConfirmed } from "@/lib/email/notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,9 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   try {
     const result = await processStripeEvent(event);
+    if (result.bookingConfirmed && result.bookingId) {
+      await notifyBookingConfirmed(result.bookingId); // customer + admin alerts, best-effort
+    }
     return NextResponse.json({ received: true, ...result });
   } catch (err) {
     // Return 500 so Stripe RETRIES (the event id dedupe makes retries safe).

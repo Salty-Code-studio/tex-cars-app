@@ -30,6 +30,7 @@ export interface ProcessResult {
   handled: boolean;
   duplicate?: boolean;
   bookingConfirmed?: boolean;
+  bookingId?: string;
 }
 
 const CONFIRM_EVENTS = new Set(["checkout.session.completed", "checkout.session.async_payment_succeeded"]);
@@ -105,7 +106,7 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
       .returning({ id: bookings.id });
 
     if (flipped.length > 0) {
-      result = { handled: true, bookingConfirmed: true };
+      result = { handled: true, bookingConfirmed: true, bookingId: booking.id };
     } else {
       // Money captured but the booking was not pending (already confirmed by
       // another session, or cancelled) → a real payment needs manual refund.
