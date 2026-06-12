@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { apiGet, api, apiPatch, apiDelete, type ApiError } from "../client";
 
 interface Bar { id: string; start: string; end: string; status: string; source: string; label: string; notes: string | null }
@@ -37,6 +37,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [popover, setPopover] = useState<Popover | null>(null);
+  const [showService, setShowService] = useState(false);
   // live drag previews (re-rendered): a selection rectangle, or a moving booking ghost
   const [sel, setSel] = useState<{ vehicleId: string; startDate: string; endDate: string } | null>(null);
   const [moveCand, setMoveCand] = useState<{ bookingId: string; vehicleId: string; startDate: string; endDate: string } | null>(null);
@@ -207,6 +208,7 @@ export default function AdminDashboard() {
         <button className="btn btn--quiet" onClick={() => load(today, addDays(today, 29))}>Next month</button>
         <button className="btn btn--quiet" onClick={() => data && load(addDays(data.from, -7), addDays(data.to, -7))}>◀ back</button>
         <button className="btn btn--quiet" onClick={() => data && load(addDays(data.from, 7), addDays(data.to, 7))}>forward ▶</button>
+        <button className="btn btn--service" onClick={() => setShowService(true)}>+ Schedule service</button>
         {msg && <span className="pl-msg" role="status">{msg}</span>}
         <div className="pl-legend">
           <span><i className="pl-swatch" style={{ background: "#0044ff" }} /> confirmed</span>
@@ -294,6 +296,16 @@ export default function AdminDashboard() {
           onError={(m) => setMsg(m)}
         />
       )}
+
+      {showService && (
+        <ServiceModal
+          vehicles={flatVehicles}
+          defaultDate={today}
+          onClose={() => setShowService(false)}
+          onDone={async (m) => { setShowService(false); if (m) setMsg(m); await load(from, to); }}
+          onError={(m) => setMsg(m)}
+        />
+      )}
     </>
   );
 }
@@ -307,15 +319,42 @@ function BoardPopover({ popover, vehicles, onClose, onDone, onError }: {
   onDone: (msg?: string) => Promise<void> | void;
   onError: (msg: string) => void;
 }) {
-  const style: React.CSSProperties = {
-    position: "fixed",
-    left: Math.min(popover.x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 320),
-    top: Math.min(popover.y + 8, (typeof window !== "undefined" ? window.innerHeight : 800) - 60),
-  };
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  // Position the popover near the click, but keep it FULLY on screen: clamp
+  // horizontally, and flip it above the anchor when it would run off the bottom
+  // (the bug in the screenshot — the form's submit button was below the fold).
+  // A ResizeObserver re-places it when the form grows (e.g. choosing "New
+  // rental" reveals more fields), and the CSS caps height + scrolls if needed.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const place = () => {
+      const m = 12;
+      const r = el.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const left = Math.max(m, Math.min(popover.x, vw - r.width - m));
+      let top = popover.y + 8;
+      if (top + r.height > vh - m) {
+        const above = popover.y - r.height - 8;
+        top = above >= m ? above : Math.max(m, vh - r.height - m);
+      }
+      setPos({ left, top });
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [popover.x, popover.y, popover.kind]);
+
+  const style: React.CSSProperties = pos
+    ? { position: "fixed", left: pos.left, top: pos.top }
+    : { position: "fixed", left: popover.x, top: popover.y + 8, visibility: "hidden" };
   return (
     <>
       <div className="pl-backdrop" onClick={onClose} />
-      <div className="pl-pop" style={style} role="dialog">
+      <div ref={ref} className="pl-pop" style={style} role="dialog">
         {popover.kind === "create" && <CreatePanel p={popover} onDone={onDone} onError={onError} onClose={onClose} />}
         {popover.kind === "booking" && <BookingPanel p={popover} vehicles={vehicles} onDone={onDone} onError={onError} onClose={onClose} />}
         {popover.kind === "block" && <BlockPanel p={popover} onDone={onDone} onError={onError} />}
@@ -462,5 +501,61 @@ function BlockPanel({ p, onDone, onError }: {
         <button className="btn danger" disabled={busy} onClick={remove}>Remove block</button>
       </div>
     </div>
+  );
+}
+
+// Button-driven way to take a car off the road for a carwash, maintenance,
+// cleaning or out-of-service window — no calendar dragging required. Writes the
+// same availability block the drag flow does, so it shows on the board instantly.
+function ServiceModal({ vehicles, defaultDate, onClose, onDone, onError }: {
+  vehicles: Vehicle[];
+  defaultDate: string;
+  onClose: () => void;
+  onDone: (msg?: string) => Promise<void> | void;
+  onError: (msg: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({
+    vehicleId: vehicles[0]?.id ?? "",
+    type: "maintenance",
+    startDate: defaultDate,
+    endDate: addDays(defaultDate, 1),
+    reason: "",
+  });
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!f.vehicleId) { onError("Add a vehicle first."); return; }
+    if (f.endDate <= f.startDate) { onError("The 'until' date must be after the start date."); return; }
+    setBusy(true);
+    try {
+      await api(`/api/admin/vehicles/${f.vehicleId}/blocks`, {
+        startDate: f.startDate, endDate: f.endDate, type: f.type, reason: f.reason,
+      });
+      await onDone("Service scheduled.");
+    } catch (err) { onError((err as ApiError).message); setBusy(false); }
+  }
+
+  return (
+    <>
+      <div className="pl-backdrop" onClick={onClose} />
+      <div className="pl-modal" role="dialog">
+        <div className="pl-pop-head"><b>Schedule service</b><span className="pl-pop-range">Carwash, maintenance, cleaning or out of service</span></div>
+        <form className="pl-form" onSubmit={submit}>
+          <label>Car<select required value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>
+            {vehicles.length === 0 && <option value="">No cars yet</option>}
+            {vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate} — {v.name}</option>)}
+          </select></label>
+          <label>Type<select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>{BLOCK_TYPES.map((t) => <option key={t} value={t}>{niceType(t)}</option>)}</select></label>
+          <label>From<input type="date" required value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></label>
+          <label>Until<input type="date" required value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} /></label>
+          <label>Note (optional)<input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="e.g. brake service at AutoFix" /></label>
+          <div className="pl-pop-actions">
+            <button className="btn" disabled={busy}>{busy ? "Saving…" : "Schedule"}</button>
+            <button type="button" className="btn btn--quiet" onClick={onClose}>Cancel</button>
+          </div>
+        </form>
+      </div>
+    </>
   );
 }

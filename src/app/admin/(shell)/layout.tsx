@@ -33,6 +33,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
       <aside className="side">
         <div className="logo">TEX<b>CARS</b> Admin</div>
         <a href="/admin">Dashboard</a>
+        <a href="/admin/reports">Reports</a>
         <a href="/admin/fleet">Fleet &amp; pricing</a>
         <a href="/admin/catalog">Add-ons &amp; insurance</a>
         <a href="/admin/settings">Settings</a>

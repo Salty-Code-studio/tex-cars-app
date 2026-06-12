@@ -146,7 +146,7 @@ table.grid td.num, table.grid th.num { text-align: right; font-variant-numeric: 
 .pl-msg { color: var(--blue); font-size: .8rem; font-weight: 600; }
 
 .pl-backdrop { position: fixed; inset: 0; z-index: 40; }
-.pl-pop { z-index: 41; width: 300px; max-width: calc(100vw - 24px); background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 40px rgba(21,25,47,.22); padding: .9rem; }
+.pl-pop { z-index: 41; width: 300px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 40px rgba(21,25,47,.22); padding: .9rem; }
 .pl-pop-head { display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap; margin-bottom: .6rem; padding-bottom: .55rem; border-bottom: 1px solid var(--line); }
 .pl-pop-head b { font-size: 1rem; }
 .pl-pop-head small { color: var(--ink-soft); }
@@ -158,6 +158,33 @@ table.grid td.num, table.grid th.num { text-align: right; font-variant-numeric: 
 .pl-form label { display: flex; flex-direction: column; gap: .2rem; font-size: .76rem; font-weight: 600; color: var(--ink-soft); }
 .pl-form input, .pl-form select { padding: .42rem .55rem; border: 1.5px solid var(--line); border-radius: 8px; font: inherit; }
 .btn.danger { background: #c81e1e; color: #fff; }
+.btn--service { width: auto; padding: .45rem .8rem; background: var(--navy); color: #fff; }
+.btn--service:hover { filter: brightness(1.15); }
+.pl-modal { position: fixed; z-index: 41; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 340px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 48px rgba(21,25,47,.28); padding: 1rem; }
 .stat-strip { display: flex; gap: 1.5rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
 .stat-strip .s b { font-size: 1.4rem; color: var(--blue); font-weight: 800; }
 .stat-strip .s span { color: var(--ink-soft); font-size: .82rem; margin-left: .35rem; }
+
+/* ---- Reports page ---- */
+.rp-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.rp-kpi { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .3rem; }
+.rp-kpi span { color: var(--ink-soft); font-size: .78rem; }
+.rp-kpi b { font-size: 1.7rem; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.rp-kpi--accent { background: var(--blue); border-color: var(--blue); }
+.rp-kpi--accent span { color: rgba(255,255,255,.85); }
+.rp-kpi--accent b { color: #fff; }
+.rp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
+@media (max-width: 820px) { .rp-grid { grid-template-columns: 1fr; } }
+.rp-bars { display: flex; align-items: flex-end; gap: .6rem; height: 210px; padding-top: 1.6rem; }
+.rp-bar { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.rp-bar__val { font-size: .66rem; color: var(--ink-soft); margin-bottom: .25rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rp-bar__track { flex: 1; width: 100%; display: flex; align-items: flex-end; }
+.rp-bar__fill { width: 100%; background: linear-gradient(180deg, #2e6bff, #0044ff); border-radius: 6px 6px 0 0; min-height: 2px; transition: height .35s ease; }
+.rp-bar__label { font-size: .72rem; color: var(--ink-soft); margin-top: .4rem; font-weight: 600; }
+.rp-hbars { display: flex; flex-direction: column; gap: .6rem; }
+.rp-hbar { display: grid; grid-template-columns: 140px 1fr auto; align-items: center; gap: .7rem; }
+.rp-hbar__label { font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-hbar__track { height: 14px; background: var(--surface); border-radius: 7px; overflow: hidden; }
+.rp-hbar__fill { display: block; height: 100%; background: linear-gradient(90deg, #0044ff, #2e6bff); border-radius: 7px; min-width: 2px; }
+.rp-hbar__val { font-size: .82rem; font-weight: 700; color: var(--navy); font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 520px) { .rp-hbar { grid-template-columns: 100px 1fr; } .rp-hbar__val { grid-column: 2; text-align: right; } }
