@@ -17,7 +17,7 @@ const BodySchema = z.object({
 
 /** POST /api/quote — server-computed price for a prospective booking. */
 export const POST = withRoute(async (req) => {
-  enforceRateLimit(req, "global", "public");
+  await enforceRateLimit(req, "global", "public");
   const body = await parseJsonBody(req, BodySchema);
   return json(await publicQuote(body, arubaToday()), req);
 });

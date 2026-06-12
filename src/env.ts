@@ -151,6 +151,16 @@ const EnvSchema = z
       .optional()
       .default(""),
     EMAIL_FROM: z.string().optional().default("Tex Cars <bookings@tex-cars.com>"),
+
+    // Upstash Redis (rate-limit store) — OPTIONAL. When both are set, the rate
+    // limiter coordinates across all serverless instances (spec §11). Falls back
+    // to the in-memory per-instance limiter when unset.
+    UPSTASH_REDIS_REST_URL: z.string().url().optional().or(z.literal("")).default(""),
+    UPSTASH_REDIS_REST_TOKEN: z.string().optional().default(""),
+
+    // Shared secret for the scheduled maintenance cron (hold expiry). OPTIONAL;
+    // the cron endpoint refuses to run without it.
+    CRON_SECRET: z.string().optional().default(""),
   });
 
 export type Env = z.infer<typeof EnvSchema>;

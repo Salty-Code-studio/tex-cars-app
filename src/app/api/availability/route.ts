@@ -21,7 +21,7 @@ const QuerySchema = z.object({
 
 /** GET /api/availability?vehicle=slug&pickup&return */
 export const GET = withRoute(async (req) => {
-  enforceRateLimit(req, "global", "public");
+  await enforceRateLimit(req, "global", "public");
   const url = new URL(req.url);
   const q = parseParams(Object.fromEntries(url.searchParams), QuerySchema);
   const db = await getDb();

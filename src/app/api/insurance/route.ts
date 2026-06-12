@@ -7,6 +7,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = withRoute(async (req) => {
-  enforceRateLimit(req, "global", "public");
+  await enforceRateLimit(req, "global", "public");
   return json(await publicInsurance(), req);
 });

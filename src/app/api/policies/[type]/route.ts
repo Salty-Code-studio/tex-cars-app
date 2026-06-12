@@ -13,7 +13,7 @@ const ParamsSchema = z.object({ type: z.enum(["rental_terms", "cancellation", "p
 
 /** GET /api/policies/[type] — the current published version, public. */
 export const GET = withRoute(async (req, { params }) => {
-  enforceRateLimit(req, "global", "public");
+  await enforceRateLimit(req, "global", "public");
   const { type } = parseParams(await params, ParamsSchema);
   const policy = await publicPolicy(type);
   if (!policy) throw Errors.notFound("This policy has not been published yet");

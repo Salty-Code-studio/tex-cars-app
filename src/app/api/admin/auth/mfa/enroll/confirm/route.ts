@@ -23,7 +23,7 @@ const BodySchema = z.object({ code: z.string().trim().max(16) }).strict();
  * Only a valid code from the authenticator flips mfaEnabled=true.
  */
 export const POST = withRoute(async (req) => {
-  enforceRateLimit(req, "auth", "admin-mfa-confirm");
+  await enforceRateLimit(req, "auth", "admin-mfa-confirm");
   const { admin, session } = await requireAdmin(req);
   if (admin.mfaEnabled) throw Errors.conflict("MFA is already enrolled");
   if (!admin.totpSecretEnc) throw Errors.badRequest("Enrollment has not been started");

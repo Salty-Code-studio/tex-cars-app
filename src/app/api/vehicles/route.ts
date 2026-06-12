@@ -8,6 +8,6 @@ export const dynamic = "force-dynamic";
 
 /** GET /api/vehicles — public, active fleet with rates. */
 export const GET = withRoute(async (req) => {
-  enforceRateLimit(req, "global", "public");
+  await enforceRateLimit(req, "global", "public");
   return json(await publicVehicles(), req);
 });

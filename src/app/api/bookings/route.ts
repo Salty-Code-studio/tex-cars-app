@@ -15,7 +15,7 @@ export const runtime = "nodejs";
  * never echoed back.
  */
 export const POST = withRoute(async (req) => {
-  enforceRateLimit(req, "global", "booking");
+  await enforceRateLimit(req, "global", "booking");
   const input = await parseJsonBody(req, BookingCreateSchema);
   const { booking, breakdown, replayed } = await createBooking(input, arubaToday());
   if (!replayed) await notifyNewBooking(booking.id); // best-effort admin alert

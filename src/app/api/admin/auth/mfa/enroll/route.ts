@@ -24,7 +24,7 @@ const RECOVERY_CODE_COUNT = 8;
  * only their hashes are stored.
  */
 export const POST = withRoute(async (req) => {
-  enforceRateLimit(req, "auth", "admin-mfa-enroll");
+  await enforceRateLimit(req, "auth", "admin-mfa-enroll");
   const { admin } = await requireAdmin(req);
   if (admin.mfaEnabled) throw Errors.conflict("MFA is already enrolled");
 

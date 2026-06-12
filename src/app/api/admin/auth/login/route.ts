@@ -31,7 +31,7 @@ const BodySchema = z.object({
  * throttling is the per-IP limiter's job.
  */
 export const POST = withRoute(async (req) => {
-  enforceRateLimit(req, "auth", "admin-login");
+  await enforceRateLimit(req, "auth", "admin-login");
   const body = await parseJsonBody(req, BodySchema);
 
   const result = await loginAdmin(body.email, body.password, { req });

@@ -31,7 +31,7 @@ const BodySchema = z.object({
  * defense. Success ROTATES the session to full (fixation defense).
  */
 export const POST = withRoute(async (req) => {
-  enforceRateLimit(req, "auth", "admin-mfa-verify");
+  await enforceRateLimit(req, "auth", "admin-mfa-verify");
   const { admin, session } = await requireAdmin(req, { allowMfaPending: true });
   if (!session.mfaPending) throw Errors.badRequest("Session is already fully authenticated");
   if (!admin.mfaEnabled || !admin.totpSecretEnc) throw Errors.badRequest("MFA is not enrolled");

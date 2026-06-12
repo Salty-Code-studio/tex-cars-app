@@ -18,9 +18,9 @@ const BodySchema = z.object({ email: z.string().trim().toLowerCase().email().max
  * Always returns a generic 200 (never reveals whether the email is known).
  */
 export const POST = withRoute(async (req) => {
-  enforceRateLimit(req, "auth", "login-request");
+  await enforceRateLimit(req, "auth", "login-request");
   const { email } = await parseJsonBody(req, BodySchema);
-  enforceRateLimit(req, "auth", `login-request:${email}`);
+  await enforceRateLimit(req, "auth", `login-request:${email}`);
 
   const { code } = await issueLoginToken(email);
   // Code travels in the URL FRAGMENT (#), which browsers never send to the

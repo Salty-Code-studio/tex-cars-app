@@ -23,7 +23,8 @@ import { isProd } from "@/env";
  *   Cache-Control (for API) ....... Prevent caching of potentially sensitive JSON.
  */
 
-const CSP_DIRECTIVES = [
+// Strict, API-oriented policy: a JSON endpoint loads nothing.
+const API_CSP = [
   "default-src 'none'",
   "base-uri 'none'",
   "form-action 'none'",
@@ -31,15 +32,36 @@ const CSP_DIRECTIVES = [
   "img-src 'self' data:",
   "font-src 'self'",
   "connect-src 'self'",
-  // No inline scripts/styles for the API. If you add a UI, use a per-request nonce.
   "script-src 'self'",
   "style-src 'self'",
   "object-src 'none'",
 ].join("; ");
 
-export function securityHeaders(): Record<string, string> {
+// UI policy for the rendered pages (admin, booking, account). Allows the
+// Next.js app-router runtime (inline hydration scripts/styles) and same-origin
+// fetches; still locks down framing, base-uri, objects, and cross-origin loads.
+// 'unsafe-eval' is added ONLY in development (Next's hot-reload needs it); the
+// production policy never includes it.
+// Hardening upgrade: move script-src to a per-request nonce + 'strict-dynamic'.
+function uiCsp(): string {
+  const scriptSrc = isProd ? "script-src 'self' 'unsafe-inline'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    scriptSrc,
+    "style-src 'self' 'unsafe-inline'",
+    "object-src 'none'",
+  ].join("; ");
+}
+
+export function securityHeaders(opts: { ui?: boolean } = {}): Record<string, string> {
   const headers: Record<string, string> = {
-    "Content-Security-Policy": CSP_DIRECTIVES,
+    "Content-Security-Policy": opts.ui ? uiCsp() : API_CSP,
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
@@ -47,9 +69,9 @@ export function securityHeaders(): Record<string, string> {
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Resource-Policy": "same-origin",
     "X-Permitted-Cross-Domain-Policies": "none",
-    // Sensitive-by-default: tell shared caches not to store API responses.
-    "Cache-Control": "no-store",
   };
+  // Only the API forbids caching; UI pages may be cached normally by the browser.
+  if (!opts.ui) headers["Cache-Control"] = "no-store";
 
   if (isProd) {
     // 2 years, include subdomains, eligible for preload list.

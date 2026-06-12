@@ -12,7 +12,7 @@ const ParamsSchema = z.object({ id: z.string().uuid() });
 
 /** POST /api/bookings/[id]/checkout — start Stripe Checkout for a pending booking. */
 export const POST = withRoute(async (req, { params }) => {
-  enforceRateLimit(req, "global", "checkout");
+  await enforceRateLimit(req, "global", "checkout");
   const { id } = parseParams(await params, ParamsSchema);
   const result = await createBookingCheckout(id, env.APP_ORIGIN);
   return json(result, req);

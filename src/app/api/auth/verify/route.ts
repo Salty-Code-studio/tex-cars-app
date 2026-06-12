@@ -24,7 +24,7 @@ const BodySchema = z.object({
  * the customer (email now verified) and issue a customer session.
  */
 export const POST = withRoute(async (req) => {
-  enforceRateLimit(req, "auth", "login-verify");
+  await enforceRateLimit(req, "auth", "login-verify");
   const { email, code } = await parseJsonBody(req, BodySchema);
 
   const result = await verifyLoginToken(email, code);
