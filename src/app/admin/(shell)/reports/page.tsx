@@ -26,8 +26,8 @@ export default function ReportsPage() {
   if (err) return (<><h1>Reports</h1><p className="sub" style={{ color: "#c81e1e" }}>{err}</p></>);
   if (!data) return (<><h1>Reports</h1><p className="muted">Crunching the numbers…</p></>);
 
-  const fmt = (cents: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: data.currency, maximumFractionDigits: 0 }).format(cents / 100);
+  const sym = ({ AWG: "Afl.", USD: "$" } as Record<string, string>)[data.currency] ?? data.currency;
+  const fmt = (cents: number) => `${sym} ${Math.round(cents / 100).toLocaleString("en-US")}`;
   const monthLabel = (mk: string) => new Date(`${mk}-01T00:00:00Z`).toLocaleString("en-US", { month: "short", timeZone: "UTC" });
   const maxMonth = Math.max(1, ...data.revenueByMonth.map((m) => m.cents));
   const maxClass = Math.max(1, ...data.revenueByClass.map((c) => c.cents));
