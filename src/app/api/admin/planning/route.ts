@@ -9,7 +9,16 @@ import { arubaToday } from "@/lib/booking/public";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+// Calendar-valid date: the regex checks shape, the refine rejects impossible
+// dates (2026-13-45, 2026-02-30) that would otherwise NaN the date arithmetic.
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(
+  (s) => {
+    const t = Date.parse(`${s}T00:00:00Z`);
+    if (Number.isNaN(t)) return false; // guard before toISOString (which would throw on NaN)
+    return new Date(t).toISOString().slice(0, 10) === s;
+  },
+  "must be a valid calendar date",
+);
 const QuerySchema = z.object({ from: isoDate.optional(), to: isoDate.optional() });
 
 /** GET /api/admin/planning?from&to — fleet timeline data. Defaults to a 2-week
