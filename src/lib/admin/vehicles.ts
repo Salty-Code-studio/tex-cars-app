@@ -12,6 +12,7 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD");
 
 export const VehicleCreateSchema = z.object({
   slug: z.string().trim().toLowerCase().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be kebab-case").max(80),
+  plate: z.string().trim().toUpperCase().regex(/^[A-Z0-9][A-Z0-9 -]{0,11}$/, "letters, numbers, spaces or dashes").max(12),
   class: z.enum(["Economy", "Compact", "SUV", "4x4", "Van"]),
   name: z.string().trim().min(1).max(120),
   seats: z.number().int().min(1).max(20),
@@ -31,6 +32,7 @@ export const VehiclePatchSchema = VehicleCreateSchema.partial().strict();
 export const BlockSchema = z.object({
   startDate: isoDate,
   endDate: isoDate,
+  type: z.enum(["maintenance", "carwash", "cleaning", "out_of_service", "other"]).default("other"),
   reason: z.string().trim().max(200).default(""),
 }).strict().refine((v) => v.endDate > v.startDate, { message: "endDate must be after startDate", path: ["endDate"] });
 

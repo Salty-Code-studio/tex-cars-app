@@ -12,12 +12,12 @@ import { getDb, closeDb } from "../src/lib/db/client";
 import { settings, vehicles, insuranceTiers, addOns } from "../src/lib/db/schema";
 
 const FLEET = [
-  { slug: "kia-picanto",    class: "Economy", name: "Kia Picanto",    seats: 4, transmission: "Automatic", ac: true, doors: 4, priceDayCents: 3500, priceWeekCents: 21000, priceMonthCents: 72000 },
-  { slug: "hyundai-accent", class: "Compact", name: "Hyundai Accent", seats: 5, transmission: "Automatic", ac: true, doors: 4, priceDayCents: 4200, priceWeekCents: 25200, priceMonthCents: 85000 },
-  { slug: "hyundai-creta",  class: "SUV",     name: "Hyundai Creta",  seats: 5, transmission: "Automatic", ac: true, doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000 },
-  { slug: "kia-sportage",   class: "SUV",     name: "Kia Sportage",   seats: 5, transmission: "Automatic", ac: true, doors: 5, priceDayCents: 6500, priceWeekCents: 39000, priceMonthCents: 132000 },
-  { slug: "suzuki-jimny",   class: "4x4",     name: "Suzuki Jimny",   seats: 4, transmission: "Manual",    ac: true, doors: 3, priceDayCents: 7000, priceWeekCents: 42000, priceMonthCents: 145000 },
-  { slug: "hyundai-staria", class: "Van",     name: "Hyundai Staria", seats: 8, transmission: "Automatic", ac: true, doors: 5, priceDayCents: 9500, priceWeekCents: 57000, priceMonthCents: 195000 },
+  { slug: "kia-picanto", plate: "A-0001",    class: "Economy", name: "Kia Picanto",    seats: 4, transmission: "Automatic", ac: true, doors: 4, priceDayCents: 3500, priceWeekCents: 21000, priceMonthCents: 72000 },
+  { slug: "hyundai-accent", plate: "A-0002", class: "Compact", name: "Hyundai Accent", seats: 5, transmission: "Automatic", ac: true, doors: 4, priceDayCents: 4200, priceWeekCents: 25200, priceMonthCents: 85000 },
+  { slug: "hyundai-creta", plate: "A-0003",  class: "SUV",     name: "Hyundai Creta",  seats: 5, transmission: "Automatic", ac: true, doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000 },
+  { slug: "kia-sportage", plate: "A-0004",   class: "SUV",     name: "Kia Sportage",   seats: 5, transmission: "Automatic", ac: true, doors: 5, priceDayCents: 6500, priceWeekCents: 39000, priceMonthCents: 132000 },
+  { slug: "suzuki-jimny", plate: "A-0005",   class: "4x4",     name: "Suzuki Jimny",   seats: 4, transmission: "Manual",    ac: true, doors: 3, priceDayCents: 7000, priceWeekCents: 42000, priceMonthCents: 145000 },
+  { slug: "hyundai-staria", plate: "A-0006", class: "Van",     name: "Hyundai Staria", seats: 8, transmission: "Automatic", ac: true, doors: 5, priceDayCents: 9500, priceWeekCents: 57000, priceMonthCents: 195000 },
 ];
 
 async function seed() {

@@ -32,7 +32,7 @@ beforeAll(async () => {
   await runMigrations();
   await db.insert(settings).values({ id: 1 }).onConflictDoNothing();
   await db.insert(vehicles).values({
-    slug: "book-car", class: "SUV", name: "Book Car", seats: 5, transmission: "Automatic",
+    slug: "book-car", plate: "PL-book-car", class: "SUV", name: "Book Car", seats: 5, transmission: "Automatic",
     doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000, depositCents: 25000,
   });
   const [tier] = await db.insert(insuranceTiers).values({ name: "Premium", dailyPriceCents: 1500, isDefault: false }).returning();
@@ -42,7 +42,7 @@ beforeAll(async () => {
   // a second vehicle so add-on stock (shared equipment) can be tested without
   // tripping the per-vehicle overlap guard first
   await db.insert(vehicles).values({
-    slug: "book-car-2", class: "SUV", name: "Book Car 2", seats: 5, transmission: "Automatic",
+    slug: "book-car-2", plate: "PL-book-car-2", class: "SUV", name: "Book Car 2", seats: 5, transmission: "Automatic",
     doors: 5, priceDayCents: 6500, priceWeekCents: 39000, priceMonthCents: 132000, depositCents: 25000,
   });
 });
@@ -99,7 +99,7 @@ describe("createBooking", () => {
 
   it("rejects full_deposit when the car has no deposit set", async () => {
     await db.insert(vehicles).values({
-      slug: "no-deposit", class: "Economy", name: "No Deposit", seats: 4, transmission: "Automatic",
+      slug: "no-deposit", plate: "PL-no-deposit", class: "Economy", name: "No Deposit", seats: 4, transmission: "Automatic",
       doors: 4, priceDayCents: 3500, priceWeekCents: 21000, priceMonthCents: 72000, depositCents: null,
     });
     await expect(

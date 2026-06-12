@@ -30,11 +30,11 @@ beforeAll(async () => {
   db = await getDb();
   await runMigrations();
   const [v] = await db.insert(vehicles).values({
-    slug: "test-car", class: "SUV", name: "Test Car", seats: 5, transmission: "Automatic",
+    slug: "test-car", plate: "PL-test-car", class: "SUV", name: "Test Car", seats: 5, transmission: "Automatic",
     doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000,
   }).returning({ id: vehicles.id });
   const [v2] = await db.insert(vehicles).values({
-    slug: "test-car-2", class: "SUV", name: "Test Car 2", seats: 5, transmission: "Automatic",
+    slug: "test-car-2", plate: "PL-test-car-2", class: "SUV", name: "Test Car 2", seats: 5, transmission: "Automatic",
     doors: 5, priceDayCents: 6500, priceWeekCents: 39000, priceMonthCents: 132000,
   }).returning({ id: vehicles.id });
   const [c] = await db.insert(customers).values({ email: "t@t.com" }).returning({ id: customers.id });

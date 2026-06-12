@@ -15,7 +15,7 @@ beforeAll(async () => {
 describe("fleet + settings schema", () => {
   it("inserts and reads a vehicle", async () => {
     await db.insert(vehicles).values({
-      slug: "kia-picanto", class: "Economy", name: "Kia Picanto", seats: 4,
+      slug: "kia-picanto", plate: "PL-kia-picanto", class: "Economy", name: "Kia Picanto", seats: 4,
       transmission: "Automatic", doors: 4,
       priceDayCents: 3500, priceWeekCents: 21000, priceMonthCents: 72000,
     });
@@ -28,7 +28,7 @@ describe("fleet + settings schema", () => {
 
   it("enforces unique slugs", async () => {
     await expectReject(db.insert(vehicles).values({
-      slug: "kia-picanto", class: "Economy", name: "Dup", seats: 4,
+      slug: "kia-picanto", plate: "PL-kia-picanto", class: "Economy", name: "Dup", seats: 4,
       transmission: "Automatic", doors: 4,
       priceDayCents: 1, priceWeekCents: 1, priceMonthCents: 1,
     }), /unique|duplicate/i);

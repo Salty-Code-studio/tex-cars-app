@@ -16,7 +16,7 @@ beforeAll(async () => {
   db = await getDb();
   await runMigrations();
   const [v] = await db.insert(vehicles).values({
-    slug: "co-car", class: "SUV", name: "CO Car", seats: 5, transmission: "Automatic",
+    slug: "co-car", plate: "PL-co-car", class: "SUV", name: "CO Car", seats: 5, transmission: "Automatic",
     doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000, depositCents: 25000,
   }).returning();
   const [c] = await db.insert(customers).values({ email: "co@test.com" }).returning();

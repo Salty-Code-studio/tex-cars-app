@@ -15,7 +15,7 @@ beforeAll(async () => {
   db = await getDb();
   await runMigrations();
   const [v] = await db.insert(vehicles).values({
-    slug: "avail-car", class: "SUV", name: "Avail Car", seats: 5, transmission: "Automatic",
+    slug: "avail-car", plate: "PL-avail-car", class: "SUV", name: "Avail Car", seats: 5, transmission: "Automatic",
     doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000,
   }).returning();
   const [c] = await db.insert(customers).values({ email: "a@a.com" }).returning();
@@ -67,7 +67,7 @@ describe("checkAvailability", () => {
 
   it("reports a retired vehicle as unavailable", async () => {
     const [r] = await db.insert(vehicles).values({
-      slug: "retired-avail", class: "Van", name: "Retired", seats: 8, transmission: "Automatic",
+      slug: "retired-avail", plate: "PL-retired-avail", class: "Van", name: "Retired", seats: 8, transmission: "Automatic",
       doors: 5, priceDayCents: 1, priceWeekCents: 1, priceMonthCents: 1, status: "retired",
     }).returning();
     expect((await checkAvailability(r!.id, "2026-07-01", "2026-07-03", settings)).available).toBe(false);

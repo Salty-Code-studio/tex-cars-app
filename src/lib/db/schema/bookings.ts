@@ -6,6 +6,7 @@ import { addOns, insuranceTiers } from "./catalog";
 
 export const bookingStatus = pgEnum("booking_status", ["pending", "confirmed", "cancelled", "completed"]);
 export const paymentOption = pgEnum("payment_option", ["reservation_fee", "full_deposit", "cash_deposit"]);
+export const bookingSource = pgEnum("booking_source", ["online", "manual"]);
 
 /**
  * Date semantics: [startDate, endDate) — endDate is the return day, exclusive,
@@ -26,6 +27,8 @@ export const bookings = pgTable("bookings", {
   endDate: date("end_date").notNull(),
   bufferEndDate: date("buffer_end_date").notNull(), // endDate + turnaround buffer; drives the exclusion constraint
   status: bookingStatus("status").notNull().default("pending"),
+  source: bookingSource("source").notNull().default("online"),
+  notes: text("notes"), // free-text, e.g. for manual desk bookings
   priceBreakdown: jsonb("price_breakdown").notNull(), // server-computed snapshot, never client math
   insuranceTierId: uuid("insurance_tier_id").references(() => insuranceTiers.id),
   insuranceSnapshot: jsonb("insurance_snapshot"),

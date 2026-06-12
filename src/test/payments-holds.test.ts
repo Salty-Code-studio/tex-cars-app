@@ -29,7 +29,7 @@ beforeAll(async () => {
   db = await getDb();
   await runMigrations();
   const [v] = await db.insert(vehicles).values({
-    slug: "hold-car", class: "SUV", name: "Hold Car", seats: 5, transmission: "Automatic",
+    slug: "hold-car", plate: "PL-hold-car", class: "SUV", name: "Hold Car", seats: 5, transmission: "Automatic",
     doors: 5, priceDayCents: 1, priceWeekCents: 1, priceMonthCents: 1,
   }).returning();
   const [c] = await db.insert(customers).values({ email: "hold@test.com" }).returning();
