@@ -25,7 +25,7 @@ export const ManualBookingSchema = z.object({
   notes: z.string().trim().max(500).optional(),
 }).strict().refine((v) => v.endDate > v.startDate, { message: "endDate must be after startDate", path: ["endDate"] });
 
-export type ManualBookingInput = z.infer<typeof ManualBookingSchema>;
+export type ManualBookingInput = z.input<typeof ManualBookingSchema>;
 
 /**
  * Walk-ins rarely give an email. We still need a unique customer row, so mint a
@@ -38,7 +38,8 @@ function syntheticEmail(phone: string, name: string): string {
   return `walkin+${slug}-${Date.now().toString(36)}${rand}@tex-cars.local`;
 }
 
-export async function createManualBooking(input: ManualBookingInput) {
+export async function createManualBooking(raw: ManualBookingInput) {
+  const input = ManualBookingSchema.parse(raw); // apply defaults (phone → "") even on direct calls
   const db = await getDb();
   const settings = await getSettings();
   const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, input.vehicleId));

@@ -85,7 +85,8 @@ export async function listBlocks(vehicleId: string): Promise<AvailabilityBlock[]
   return db.select().from(availabilityBlocks).where(eq(availabilityBlocks.vehicleId, vehicleId)).orderBy(asc(availabilityBlocks.startDate));
 }
 
-export async function createBlock(vehicleId: string, input: z.infer<typeof BlockSchema>): Promise<AvailabilityBlock> {
+export async function createBlock(vehicleId: string, raw: z.input<typeof BlockSchema>): Promise<AvailabilityBlock> {
+  const input = BlockSchema.parse(raw); // apply defaults (type → "other", reason → "") on direct calls
   const db = await getDb();
   const vehicle = await getVehicle(vehicleId);
   if (!vehicle) throw Errors.notFound("Vehicle not found");
