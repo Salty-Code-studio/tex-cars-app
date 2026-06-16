@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-interface Vehicle { slug: string; class: string; name: string; seats: number; transmission: string; doors: number; priceDayCents: number; depositCents: number | null }
+interface ClassOption { class: string; fromDayCents: number; depositCents: number | null; cars: number; available: boolean | null; carSlug: string | null }
 interface Tier { id: string; name: string; dailyPriceCents: number; coverage: string; isDefault: boolean }
 interface AddOn { id: string; name: string; description: string; priceCents: number; pricing: "per_day" | "per_rental" }
 interface Breakdown {
@@ -11,14 +11,14 @@ interface Breakdown {
   addOnsCents: number; subtotalCents: number; depositCents: number | null; reservationFeeCents: number; currency: string;
 }
 
-const money = (c: number, cur = "USD") => `${cur} ${(c / 100).toFixed(2)}`;
+const money = (c: number, cur = "USD") => (cur === "USD" ? `$${(c / 100).toFixed(2)}` : `${cur} ${(c / 100).toFixed(2)}`);
 const blankLicense = { nameOnLicense: "", licenseNumber: "", issuingCountry: "Aruba", issueDate: "", expiryDate: "", dob: "" };
 
 export default function BookPage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [addons, setAddons] = useState<AddOn[]>([]);
-  const [slug, setSlug] = useState("");
+  const [selectedClass, setSelectedClass] = useState("");
   const [pickup, setPickup] = useState("");
   const [ret, setRet] = useState("");
   const [tierId, setTierId] = useState<string>("");
@@ -28,87 +28,105 @@ export default function BookPage() {
   const [paymentOption, setPaymentOption] = useState<"reservation_fee" | "full_deposit" | "cash_deposit">("reservation_fee");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [breakdown, setBreakdown] = useState<Breakdown | null>(null);
-  const [avail, setAvail] = useState<{ available: boolean; reason?: string } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const idemKey = useMemo(() => (typeof crypto !== "undefined" ? crypto.randomUUID() : String(Math.random())), []);
 
-  // Load catalogs + read the Phase 1 deep-link params.
+  // Load catalogs + read the Phase 1 deep-link params (?class, ?pickup, ?return).
   useEffect(() => {
     Promise.all([
-      fetch("/api/vehicles").then((r) => r.json()),
+      fetch("/api/classes").then((r) => r.json()),
       fetch("/api/insurance").then((r) => r.json()),
       fetch("/api/addons").then((r) => r.json()),
-    ]).then(([v, i, a]: [Vehicle[], Tier[], AddOn[]]) => {
-      setVehicles(v); setTiers(i); setAddons(a);
+    ]).then(([c, i, a]: [ClassOption[], Tier[], AddOn[]]) => {
+      setClasses(c); setTiers(i); setAddons(a);
       const def = i.find((t) => t.isDefault);
       if (def) setTierId(def.id);
       const p = new URLSearchParams(window.location.search);
       if (p.get("pickup")) setPickup(p.get("pickup")!);
       if (p.get("return")) setRet(p.get("return")!);
-      const car = p.get("car");
-      const cls = p.get("class");
-      if (car && v.some((x) => x.slug === car)) setSlug(car);
-      else if (cls) { const m = v.find((x) => x.class.toLowerCase() === cls.toLowerCase()); if (m) setSlug(m.slug); }
+      const cls = p.get("class") || p.get("car"); // car is legacy; both resolve to a type
+      if (cls) { const m = c.find((x) => x.class.toLowerCase() === cls.toLowerCase()); if (m) setSelectedClass(m.class); }
     }).catch(() => setError("Could not load the fleet. Please refresh."));
   }, []);
+
+  // Re-resolve availability + the held car whenever the dates change.
+  useEffect(() => {
+    if (!pickup || !ret || ret <= pickup) return;
+    let live = true;
+    fetch(`/api/classes?pickup=${pickup}&return=${ret}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((c: ClassOption[] | null) => { if (live && c) setClasses(c); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [pickup, ret]);
+
+  const selectedData = classes.find((c) => c.class === selectedClass);
+  const carSlug = selectedData?.carSlug ?? null;
+  const avail = !pickup || !ret || ret <= pickup ? null
+    : selectedData?.available ? { available: true as const }
+    : { available: false as const, reason: "No cars of this type are free on those dates" };
 
   const addOnsBody = useMemo(
     () => Object.entries(qty).filter(([, q]) => q > 0).map(([addOnId, q]) => ({ addOnId, qty: q })),
     [qty],
   );
 
-  // Live quote + availability whenever the selection changes.
+  // Live USD quote whenever the (resolved) car, dates, insurance or extras change.
   useEffect(() => {
-    if (!slug || !pickup || !ret || ret <= pickup) { setBreakdown(null); setAvail(null); return; }
-    const body = { vehicleSlug: slug, startDate: pickup, endDate: ret, insuranceTierId: tierId || null, addOns: addOnsBody };
+    if (!carSlug || !pickup || !ret || ret <= pickup) { setBreakdown(null); return; }
+    const body = { vehicleSlug: carSlug, startDate: pickup, endDate: ret, insuranceTierId: tierId || null, addOns: addOnsBody };
     let live = true;
     fetch("/api/quote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
       .then((r) => (r.ok ? r.json() : null)).then((b) => { if (live) setBreakdown(b); }).catch(() => {});
-    fetch(`/api/availability?vehicle=${encodeURIComponent(slug)}&pickup=${pickup}&return=${ret}`)
-      .then((r) => (r.ok ? r.json() : null)).then((a) => { if (live) setAvail(a); }).catch(() => {});
     return () => { live = false; };
-  }, [slug, pickup, ret, tierId, addOnsBody]);
+  }, [carSlug, pickup, ret, tierId, addOnsBody]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError(""); setBusy(true);
     try {
+      if (!carSlug) { setError("Please pick a car type and dates."); setBusy(false); return; }
       const res = await fetch("/api/bookings", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          vehicleSlug: slug, startDate: pickup, endDate: ret, customer,
+          vehicleSlug: carSlug, startDate: pickup, endDate: ret, customer,
           insuranceTierId: tierId || null, addOns: addOnsBody, license,
           acceptTerms, paymentOption, idempotencyKey: idemKey,
         }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data?.error?.message ?? "We could not create your booking."); setBusy(false); return; }
-      // Hand off to Stripe Checkout to pay the reservation fee / deposit.
       const checkout = await fetch(`/api/bookings/${data.id}/checkout`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
       });
       const co = await checkout.json();
       if (checkout.ok && co.url) { window.location.href = co.url; return; }
-      // Booking is held even if checkout couldn't start; show the confirmation.
       window.location.href = `/book/confirmation?id=${data.id}`;
     } catch { setError("Network error. Please try again."); setBusy(false); }
   }
 
-  const selected = vehicles.find((v) => v.slug === slug);
   const cur = breakdown?.currency ?? "USD";
 
   return (
     <form className="wrap book-grid" onSubmit={submit}>
       <div>
         <div className="card">
-          <h2><span className="step-n">1</span>Pick your car</h2>
+          <h2><span className="step-n">1</span>Pick your car type</h2>
           <div className="veh-list">
-            {vehicles.length === 0 && <p className="note">Loading the fleet…</p>}
-            {vehicles.map((v) => (
-              <button type="button" key={v.slug} className={`veh ${v.slug === slug ? "sel" : ""}`} onClick={() => setSlug(v.slug)}>
-                <span><span className="nm">{v.name}</span><br /><span className="meta">{v.class} · {v.seats} seats · {v.transmission}</span></span>
-                <span className="price"><b>{money(v.priceDayCents, cur)}</b><br /><span className="meta">/ day</span></span>
+            {classes.length === 0 && <p className="note">Loading the fleet…</p>}
+            {classes.map((c) => (
+              <button type="button" key={c.class} className={`veh ${c.class === selectedClass ? "sel" : ""}`}
+                disabled={c.available === false}
+                onClick={() => setSelectedClass(c.class)}>
+                <span>
+                  <span className="nm">{c.class}</span><br />
+                  <span className="meta">
+                    {c.cars} car{c.cars !== 1 ? "s" : ""} in this class
+                    {c.available === false ? " · none free on those dates" : ""}
+                  </span>
+                </span>
+                <span className="price"><b>{money(c.fromDayCents, "USD")}</b><br /><span className="meta">/ day</span></span>
               </button>
             ))}
           </div>
@@ -120,9 +138,9 @@ export default function BookPage() {
             <label className="fld">Pick-up<input type="date" required value={pickup} onChange={(e) => setPickup(e.target.value)} /></label>
             <label className="fld">Return<input type="date" required value={ret} onChange={(e) => setRet(e.target.value)} /></label>
           </div>
-          {avail && (avail.available
-            ? <p className="avail ok">✓ Available on these dates</p>
-            : <p className="avail no">✕ {avail.reason ?? "Not available"}</p>)}
+          {selectedClass && avail && (avail.available
+            ? <p className="avail ok">✓ A {selectedClass} car is available on these dates</p>
+            : <p className="avail no">✕ {avail.reason}</p>)}
         </div>
 
         <div className="card">
@@ -178,9 +196,9 @@ export default function BookPage() {
 
       <aside className="card summary">
         <h2>Summary</h2>
-        {!breakdown ? <p className="note">Pick a car and dates to see your price.</p> : (
+        {!breakdown ? <p className="note">Pick a car type and dates to see your price.</p> : (
           <>
-            {selected && <div className="line"><span>{selected.name}</span><span></span></div>}
+            {selectedClass && <div className="line"><span>{selectedClass} car</span><span></span></div>}
             <div className="line"><span>{breakdown.days} day{breakdown.days !== 1 ? "s" : ""} rental</span><span>{money(breakdown.vehicleCents, cur)}</span></div>
             {breakdown.insuranceCents > 0 && <div className="line"><span>Insurance</span><span>{money(breakdown.insuranceCents, cur)}</span></div>}
             {breakdown.addOns.filter((l) => l.cents > 0).map((l) => (

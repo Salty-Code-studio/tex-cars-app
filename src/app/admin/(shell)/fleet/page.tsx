@@ -79,7 +79,7 @@ export default function FleetPage() {
     if (blocksFor) setBlocks(await apiGet<Block[]>(`/api/admin/vehicles/${blocksFor.id}/blocks`));
   }
 
-  const money = (c: number) => `Afl. ${(c / 100).toFixed(0)}`;
+  const money = (c: number) => `$${(c / 100).toFixed(0)}`;
 
   return (
     <>
@@ -123,10 +123,10 @@ export default function FleetPage() {
           <label>Transmission<select value={f.transmission} onChange={(e) => setF({ ...f, transmission: e.target.value })}><option>Automatic</option><option>Manual</option></select></label>
           <label>Seats<input type="number" min="1" max="20" value={f.seats} onChange={(e) => setF({ ...f, seats: e.target.value })} /></label>
           <label>Doors<input type="number" min="1" max="8" value={f.doors} onChange={(e) => setF({ ...f, doors: e.target.value })} /></label>
-          <label>Price / day (Afl.)<input type="number" step="0.01" min="0" required value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} /></label>
-          <label>Price / week (Afl.)<input type="number" step="0.01" min="0" required value={f.week} onChange={(e) => setF({ ...f, week: e.target.value })} /></label>
-          <label>Price / month (Afl.)<input type="number" step="0.01" min="0" required value={f.month} onChange={(e) => setF({ ...f, month: e.target.value })} /></label>
-          <label>Deposit (Afl., blank = TBC)<input type="number" step="0.01" min="0" value={f.deposit} onChange={(e) => setF({ ...f, deposit: e.target.value })} /></label>
+          <label>Price / day (USD)<input type="number" step="0.01" min="0" required value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} /></label>
+          <label>Price / week (USD)<input type="number" step="0.01" min="0" required value={f.week} onChange={(e) => setF({ ...f, week: e.target.value })} /></label>
+          <label>Price / month (USD)<input type="number" step="0.01" min="0" required value={f.month} onChange={(e) => setF({ ...f, month: e.target.value })} /></label>
+          <label>Deposit (USD, blank = TBC)<input type="number" step="0.01" min="0" value={f.deposit} onChange={(e) => setF({ ...f, deposit: e.target.value })} /></label>
           <label>Status<select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="active">active</option><option value="maintenance">maintenance</option><option value="retired">retired</option></select></label>
           <label className="check"><input type="checkbox" checked={f.ac} onChange={(e) => setF({ ...f, ac: e.target.checked })} /> Air conditioning</label>
         </div>
