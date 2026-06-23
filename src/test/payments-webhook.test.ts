@@ -111,6 +111,22 @@ describe("processStripeEvent", () => {
     expect(after!.status).toBe("cancelled");
   });
 
+  it("handles a surplus capture from a second session without colliding on the one-pending index", async () => {
+    // Booking confirmed with a SUCCEEDED payment for session B…
+    const b = await makePendingBooking("wh-surplus", "cs_surplus_B");
+    await processStripeEvent(paidEvent("evt_surplus_B", "cs_surplus_B", b.id));
+    // …then a DIFFERENT session pays for the same booking → a surplus capture.
+    // The authoritative succeeded-upsert of session A must NOT collide with the
+    // succeeded row for session B (the one-PENDING index makes this safe; a
+    // pending|succeeded index would 23505 here and 500 the webhook forever).
+    const res = await processStripeEvent(paidEvent("evt_surplus_A", "cs_surplus_A", b.id, { payment_intent: null }));
+    expect(res.bookingConfirmed).toBe(false);
+    const [payA] = await db.select().from(payments).where(eq(payments.stripeCheckoutSessionId, "cs_surplus_A"));
+    expect(payA!.status).toBe("succeeded");
+    const [after] = await db.select().from(bookings).where(eq(bookings.id, b.id));
+    expect(after!.status).toBe("confirmed");
+  });
+
   it("creates an authoritative succeeded payment row even if none existed (lost checkout insert)", async () => {
     const b = await makeBookingNoPayment("wh-auth");
     const res = await processStripeEvent(paidEvent("evt_auth", "cs_auth", b.id));

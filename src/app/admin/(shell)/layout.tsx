@@ -7,6 +7,7 @@ import { SESSION_COOKIE } from "@/lib/auth/cookies";
 import { getDb } from "@/lib/db/client";
 import { adminUsers } from "@/lib/db/schema";
 import { LogoutButton } from "./logout-button";
+import { NotificationBell } from "./notification-bell";
 import "../admin.css";
 
 export const metadata = { title: "Tex Cars Admin", robots: { index: false, follow: false } };
@@ -44,6 +45,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
       </aside>
       <main className="main">
         <div className="topbar">
+          <NotificationBell />
           <LogoutButton />
         </div>
         {children}

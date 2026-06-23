@@ -7,7 +7,7 @@ Everything needed to take the Phase 2 platform from this repo to a live site at
 
 | Service | What | Gives you |
 |---|---|---|
-| **Neon** (or Supabase) | Postgres database | `DATABASE_URL` (use `?sslmode=require`) |
+| **Supabase** (or Neon) | Postgres database | `DATABASE_URL` = transaction pooler (`:6543`, add `?sslmode=require`) for runtime; `DATABASE_MIGRATION_URL` = direct connection (`:5432`) for migrations |
 | **Upstash** | Redis (rate-limit store) | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` |
 | **Stripe** | Payments (test then live) | a **restricted** key `rk_...`, and a webhook signing secret `whsec_...` |
 | **Resend** | Transactional email | `RESEND_API_KEY` `re_...`, and a verified sender domain for `EMAIL_FROM` |
@@ -28,7 +28,7 @@ start if any required one is missing or weak):
 
 - `NODE_ENV=production`, `APP_ORIGIN=https://app.tex-cars.com`, `CORS_ALLOWED_ORIGINS=https://app.tex-cars.com`
 - `SESSION_SECRET`, `SESSION_TTL_SECONDS=86400`, `SESSION_IDLE_TTL_SECONDS=1800`
-- `DATABASE_URL` (Neon, `sslmode=require`), `DATA_ENCRYPTION_KEY`
+- `DATABASE_URL` (Supabase transaction pooler `:6543`, `?sslmode=require`), `DATABASE_MIGRATION_URL` (Supabase direct `:5432`; optional), `DATA_ENCRYPTION_KEY`
 - `STRIPE_SECRET_KEY` (restricted), `STRIPE_WEBHOOK_SECRET`
 - `RESEND_API_KEY`, `EMAIL_FROM="Tex Cars <bookings@tex-cars.com>"`
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
@@ -37,9 +37,14 @@ start if any required one is missing or weak):
 
 ## 4. Database
 
+Run these once with the env above loaded. `db:migrate` uses `DATABASE_MIGRATION_URL`
+(the Supabase direct `:5432` connection) when set, otherwise `DATABASE_URL`. The
+booking exclusion constraint's `btree_gist` extension is created by migration 0002,
+so there is nothing to enable in the Supabase dashboard.
+
 ```bash
-npm run db:migrate    # applies drizzle/ migrations to Neon
-npm run db:seed       # settings, insurance tiers, add-ons, and the 6 placeholder vehicles
+npm run db:migrate    # applies drizzle/ migrations (direct connection)
+npm run db:seed       # settings, insurance tiers, add-ons, and the placeholder fleet
 npm run admin:create -- owner@tex-cars.com   # prints a one-time password; MFA is forced at first login
 ```
 

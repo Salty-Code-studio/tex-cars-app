@@ -17,6 +17,11 @@ export const adminUsers = pgTable("admin_users", {
   failedAttempts: integer("failed_attempts").notNull().default(0),
   lockoutCount: integer("lockout_count").notNull().default(0), // exponential backoff multiplier
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  // Second-factor (TOTP/recovery) throttle, separate from the password lockout
+  // above. Keyed to the account so it can't be bypassed by rotating request
+  // headers the way the IP/fingerprint rate limit can.
+  mfaFailedAttempts: integer("mfa_failed_attempts").notNull().default(0),
+  mfaLockedUntil: timestamp("mfa_locked_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

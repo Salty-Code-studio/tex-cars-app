@@ -163,7 +163,7 @@ export default function BookPage() {
                 <span className="grow"><b>{a.name}</b>{a.description ? <><br /><span className="meta">{a.description}</span></> : null}</span>
                 {(qty[a.id] ?? 0) > 0 && (
                   <input type="number" min={1} max={10} value={qty[a.id]} style={{ width: 56 }}
-                    onChange={(e) => setQty((q) => ({ ...q, [a.id]: Math.max(1, Number(e.target.value)) }))} />
+                    onChange={(e) => setQty((q) => ({ ...q, [a.id]: Math.min(10, Math.max(1, Number(e.target.value) || 1)) }))} />
                 )}
                 <span className="price">{money(a.priceCents, cur)}{a.pricing === "per_day" ? "/day" : ""}</span>
               </label>

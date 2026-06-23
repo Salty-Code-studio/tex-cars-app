@@ -62,7 +62,11 @@ export async function requireAdmin(
     throw Errors.unauthorized("Multi-factor authentication enrollment required");
   }
 
-  const roles = opts.roles ?? ["owner", "staff"];
+  // Deny-by-default on role: every admin route requires `owner` unless it opts
+  // a wider set in explicitly. Today all accounts are owners, so this changes no
+  // current behavior — but if a `staff` account is ever provisioned it gets 403
+  // everywhere by default instead of silently inheriting full owner power.
+  const roles = opts.roles ?? ["owner"];
   if (!roles.includes(admin.role)) throw Errors.forbidden();
 
   return { admin, session };

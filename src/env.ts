@@ -85,14 +85,28 @@ const EnvSchema = z
     // absolute SESSION_TTL_SECONDS expiry (spec §4: idle + absolute timeout).
     SESSION_IDLE_TTL_SECONDS: positiveInt("SESSION_IDLE_TTL_SECONDS").default(1_800),
 
-    // Postgres connection. postgres:// for Neon/real Postgres,
+    // Postgres connection. postgres:// for Supabase/Neon/real Postgres,
     // pglite://memory or pglite://<dir> for the zero-install dev/test database.
+    // For Supabase serverless runtime, use the TRANSACTION POOLER URL (:6543).
     DATABASE_URL: z
       .string({ required_error: "DATABASE_URL is required" })
       .min(1, "DATABASE_URL is required")
       .refine(
         (v) => /^(postgres(ql)?|pglite):\/\//.test(v),
         "DATABASE_URL must start with postgres:// or pglite://",
+      ),
+
+    // OPTIONAL direct/session connection used ONLY to run migrations (DDL).
+    // Supabase recommends migrating over the DIRECT connection (:5432), not the
+    // transaction pooler (:6543). When set, `db:migrate` uses this; the running
+    // app still uses DATABASE_URL. Leave empty to migrate over DATABASE_URL.
+    DATABASE_MIGRATION_URL: z
+      .string()
+      .optional()
+      .default("")
+      .refine(
+        (v) => v === "" || /^postgres(ql)?:\/\//.test(v),
+        "DATABASE_MIGRATION_URL must be a postgres:// URL or empty",
       ),
 
     // Stripe (payments). Prefer a RESTRICTED key (rk_) over a secret key (sk_).
@@ -161,6 +175,14 @@ const EnvSchema = z
     // Shared secret for the scheduled maintenance cron (hold expiry). OPTIONAL;
     // the cron endpoint refuses to run without it.
     CRON_SECRET: z.string().optional().default(""),
+
+    // Owner WhatsApp alerts (Meta WhatsApp Business Cloud API) — OPTIONAL. With
+    // all three set, owner alerts also push to WhatsApp; otherwise that channel
+    // is skipped and only email is used. The owner must provision a WhatsApp
+    // Business number + permanent token.
+    WHATSAPP_TOKEN: z.string().optional().default(""),
+    WHATSAPP_PHONE_ID: z.string().optional().default(""),
+    WHATSAPP_OWNER_TO: z.string().optional().default(""),
   });
 
 export type Env = z.infer<typeof EnvSchema>;

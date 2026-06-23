@@ -72,6 +72,16 @@ export async function createBooking(input: BookingCreateInput, today: string): P
   if (input.paymentOption === "full_deposit" && vehicle.depositCents === null) {
     throw Errors.badRequest("Paying the full deposit online is not available for this car yet");
   }
+  // A reservation_fee / cash_deposit booking is locked by charging the online
+  // reservation fee. If the owner set that fee to 0 the booking would be created
+  // but never chargeable (chargeForBooking throws), so reject it up front rather
+  // than leave an unpayable hold tying up the car until it expires.
+  if (
+    (input.paymentOption === "reservation_fee" || input.paymentOption === "cash_deposit") &&
+    settings.reservationFeeCents <= 0
+  ) {
+    throw Errors.badRequest("Online reservation is unavailable right now; please contact us to book");
+  }
 
   // Resolve insurance tier (must be active) and add-ons (must be active).
   let insurance: { id: string; name: string; dailyPriceCents: number } | null = null;

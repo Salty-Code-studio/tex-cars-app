@@ -32,8 +32,9 @@ export async function mutate<T>(
   req: Request,
   action: string,
   fn: (ctx: AdminContext) => Promise<MutationOutcome<T>>,
+  opts?: RequireAdminOptions,
 ): Promise<T> {
-  const ctx = await requireAdmin(req);
+  const ctx = await requireAdmin(req, opts);
   let outcome: MutationOutcome<T>;
   try {
     outcome = await fn(ctx);

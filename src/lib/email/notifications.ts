@@ -12,6 +12,7 @@ import { sendAndLog, sendToMany } from "@/lib/email/send";
 import {
   bookingConfirmedEmail, adminNewBookingEmail, adminPaymentEmail,
 } from "@/lib/email/templates";
+import { notifyAdmin, sendOwnerWhatsApp } from "@/lib/notify";
 import { logger } from "@/lib/logger";
 import type { QuoteBreakdown } from "@/lib/booking/quote";
 
@@ -39,6 +40,12 @@ export async function notifyNewBooking(bookingId: string): Promise<void> {
         customerEmail: ctx.customerEmail, paymentOption: ctx.booking.paymentOption,
       }),
     }));
+    await notifyAdmin({
+      level: "info", type: "booking.created", title: "New booking",
+      body: `${ctx.vehicleName} · ${ctx.booking.startDate} → ${ctx.booking.endDate} · ${ctx.customerEmail}`,
+      bookingId,
+    });
+    await sendOwnerWhatsApp(`New booking: ${ctx.vehicleName}, ${ctx.booking.startDate} → ${ctx.booking.endDate} (${ctx.customerEmail})`).catch(() => undefined);
   } catch (e) {
     logger.error("notify_new_booking_failed", { bookingId, error: (e as Error).message });
   }
@@ -73,6 +80,12 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
         }),
       }));
     }
+    await notifyAdmin({
+      level: "success", type: "payment.received", title: "Payment received",
+      body: `${ctx.vehicleName} confirmed · ${ctx.customerEmail}`,
+      bookingId,
+    });
+    await sendOwnerWhatsApp(`Payment received: ${ctx.vehicleName} confirmed (${ctx.customerEmail})`).catch(() => undefined);
   } catch (e) {
     logger.error("notify_booking_confirmed_failed", { bookingId, error: (e as Error).message });
   }

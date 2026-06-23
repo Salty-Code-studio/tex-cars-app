@@ -10,3 +10,4 @@ export * from "./admin";
 export * from "./logs";
 export * from "./sessions";
 export * from "./auth-tokens";
+export * from "./notifications";

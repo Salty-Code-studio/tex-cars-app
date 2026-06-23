@@ -1,6 +1,6 @@
 /* Tex Cars public booking flow — brand-aligned, clean. */
 :root {
-  --blue: #0044ff; --blue-dark: #0a2db0; --orange: #ff4600; --navy: #15192f;
+  --blue: #2348c7; --blue-dark: #152c7a; --orange: #f15f2c; --navy: #15192f;
   --ink: #15192f; --ink-soft: #4a5170; --line: #e6e9f2; --surface: #f7f8fc;
   --danger: #c81e1e; --ok: #0f7b4d;
 }
@@ -30,7 +30,7 @@ label.fld input:focus, label.fld select:focus { outline: none; border-color: var
 .veh-list { display: grid; gap: .6rem; }
 .veh { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .8rem 1rem; border: 1.5px solid var(--line); border-radius: 10px; cursor: pointer; background: #fff; text-align: left; font: inherit; }
 .veh:hover { border-color: var(--blue); }
-.veh.sel { border-color: var(--blue); background: #eef3ff; }
+.veh.sel { border-color: var(--blue); background: #eff3fc; }
 .veh .nm { font-weight: 700; }
 .veh .meta { font-size: .8rem; color: var(--ink-soft); }
 .veh .price b { color: var(--blue); }
@@ -46,7 +46,7 @@ label.fld input:focus, label.fld select:focus { outline: none; border-color: var
 .summary .muted { color: var(--ink-soft); font-size: .82rem; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; width: 100%; padding: .85rem 1rem; border: 0; border-radius: 10px; background: var(--orange); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
-.btn:hover { background: #e23e00; }
+.btn:hover { background: #d84e1f; }
 .btn:disabled { opacity: .5; cursor: default; }
 .note { font-size: .82rem; color: var(--ink-soft); margin-top: .6rem; }
 .msg { font-size: .88rem; min-height: 1.2em; }

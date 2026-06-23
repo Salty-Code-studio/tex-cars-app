@@ -211,7 +211,7 @@ export default function AdminDashboard() {
         <button className="btn btn--service" onClick={() => setShowService(true)}>+ Schedule service</button>
         {msg && <span className="pl-msg" role="status">{msg}</span>}
         <div className="pl-legend">
-          <span><i className="pl-swatch" style={{ background: "#0044ff" }} /> confirmed</span>
+          <span><i className="pl-swatch" style={{ background: "#2348c7" }} /> confirmed</span>
           <span><i className="pl-swatch" style={{ background: "#f6a609" }} /> pending</span>
           <span><i className="pl-swatch" style={{ background: "#0f7b4d" }} /> completed</span>
           <span><i className="pl-swatch" style={{ background: "#9aa2c0" }} /> blocked</span>

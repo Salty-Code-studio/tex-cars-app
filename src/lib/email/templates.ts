@@ -7,12 +7,12 @@ export interface RenderedEmail {
   html: string;
 }
 
-const BRAND = "#0044ff";
+const BRAND = "#2348c7";
 const INK = "#15192f";
 
 function shell(title: string, body: string): string {
   return `<div style="font-family:-apple-system,Segoe UI,Roboto,Inter,sans-serif;color:${INK};max-width:520px;margin:0 auto;padding:24px">
-  <div style="font-weight:800;letter-spacing:.03em;font-size:18px;margin-bottom:20px">TEX<span style="color:#ff4600">CARS</span></div>
+  <div style="font-weight:800;letter-spacing:.03em;font-size:18px;margin-bottom:20px">TEX<span style="color:#f15f2c">CARS</span></div>
   <h1 style="font-size:20px;margin:0 0 12px">${title}</h1>
   ${body}
   <p style="color:#828aa6;font-size:12px;margin-top:28px">Tex Cars &amp; Leasing, Aruba. We bring the car to you.</p>

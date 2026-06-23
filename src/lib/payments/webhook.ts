@@ -118,9 +118,14 @@ export async function processStripeEvent(event: Stripe.Event): Promise<ProcessRe
     if (flipped.length > 0) {
       result = { handled: true, bookingConfirmed: true, bookingId: booking.id };
     } else {
-      // Money captured but the booking was not pending (already confirmed by
-      // another session, or cancelled) → a real surplus charge. Flag it AND
-      // queue an automatic refund once the transaction commits.
+      // Money captured but the booking was not pending → a real surplus charge.
+      // We deliberately do NOT auto-resurrect a cancelled booking here: the
+      // webhook can't tell an auto-expired hold from a deliberate admin/customer
+      // cancellation, so reviving could un-cancel an intentionally cancelled
+      // booking. (The hold-expiry cron can no longer cancel a *payable* booking
+      // anyway: checkout now writes the pending payment row in-transaction before
+      // the customer can pay, and expireStaleHolds skips any non-failed payment.)
+      // Flag the surplus AND queue an automatic refund once the transaction commits.
       logger.error("stripe_webhook_surplus_payment_needs_refund", {
         bookingId: booking.id, bookingStatus: booking.status, paymentIntentId, sessionId: session.id, eventId: event.id,
       });
