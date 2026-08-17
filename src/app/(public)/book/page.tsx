@@ -210,11 +210,17 @@ export default function BookPage() {
             <div className="line total"><span>Rental total</span><span>{money(breakdown.subtotalCents, cur)}</span></div>
             {breakdown.depositCents !== null && <div className="line muted"><span>Refundable deposit</span><span>{money(breakdown.depositCents, cur)}</span></div>}
 
-            <div style={{ marginTop: "1rem" }}>
-              <label className="opt"><input type="radio" name="pay" checked={paymentOption === "reservation_fee"} onChange={() => setPaymentOption("reservation_fee")} /><span className="grow">Pay the reservation fee now to hold it</span><span className="price">{money(breakdown.reservationFeeCents, cur)}</span></label>
-              {breakdown.depositCents !== null && <label className="opt"><input type="radio" name="pay" checked={paymentOption === "full_deposit"} onChange={() => setPaymentOption("full_deposit")} /><span className="grow">Pay the full deposit online instead</span><span className="price">{money(breakdown.depositCents, cur)}</span></label>}
-              <label className="opt"><input type="radio" name="pay" checked={paymentOption === "cash_deposit"} onChange={() => setPaymentOption("cash_deposit")} /><span className="grow">Pay deposit in cash at pick-up (reservation fee still applies)</span></label>
-            </div>
+            {!RESERVE_MODE && (
+              <div style={{ marginTop: "1rem" }}>
+                <label className="opt"><input type="radio" name="pay" checked={paymentOption === "reservation_fee"} onChange={() => setPaymentOption("reservation_fee")} /><span className="grow">Pay the reservation fee now to hold it</span><span className="price">{money(breakdown.reservationFeeCents, cur)}</span></label>
+                {breakdown.depositCents !== null && <label className="opt"><input type="radio" name="pay" checked={paymentOption === "full_deposit"} onChange={() => setPaymentOption("full_deposit")} /><span className="grow">Pay the full deposit online instead</span><span className="price">{money(breakdown.depositCents, cur)}</span></label>}
+                <label className="opt"><input type="radio" name="pay" checked={paymentOption === "cash_deposit"} onChange={() => setPaymentOption("cash_deposit")} /><span className="grow">Pay deposit in cash at pick-up (reservation fee still applies)</span></label>
+              </div>
+            )}
+            {/* Reserve mode: no online payment, so no radios to pick a paymentOption.
+                `paymentOption` keeps its initial "reservation_fee" default (state
+                init above) and is submitted as-is — the server accepts any valid
+                paymentOption value and reserve mode doesn't act on it. */}
 
             <label className="terms" style={{ margin: "1rem 0" }}>
               <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} />

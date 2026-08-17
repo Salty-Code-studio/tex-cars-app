@@ -29,10 +29,12 @@ start if any required one is missing or weak):
 - `NODE_ENV=production`, `APP_ORIGIN=https://app.tex-cars.com`, `CORS_ALLOWED_ORIGINS=https://app.tex-cars.com`
 - `SESSION_SECRET`, `SESSION_TTL_SECONDS=86400`, `SESSION_IDLE_TTL_SECONDS=1800`
 - `DATABASE_URL` (Supabase transaction pooler `:6543`, `?sslmode=require`), `DATABASE_MIGRATION_URL` (Supabase direct `:5432`; optional), `DATA_ENCRYPTION_KEY`
-- `STRIPE_SECRET_KEY` (restricted), `STRIPE_WEBHOOK_SECRET`
+- `PAYMENT_MODE` / `NEXT_PUBLIC_PAYMENT_MODE` — must match; `stripe` (online checkout, default) or `reserve` (pay-at-desk, no Stripe). `NEXT_PUBLIC_PAYMENT_MODE` is baked into the client bundle at build time, so it must also be set as a Docker build-time `ENV` (see Dockerfile) matching the runtime value.
+- `STRIPE_SECRET_KEY` (restricted), `STRIPE_WEBHOOK_SECRET` — only required when `PAYMENT_MODE=stripe`
 - `RESEND_API_KEY`, `EMAIL_FROM="Tex Cars <bookings@tex-cars.com>"`
 - `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
 - `CRON_SECRET`
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — optional; set both to also push owner alerts to Telegram
 - `TRUST_PROXY=true`  (Vercel overwrites `x-forwarded-for`, so per-client rate limiting works)
 
 ## 4. Database

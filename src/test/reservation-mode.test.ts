@@ -40,6 +40,7 @@ describe("PAYMENT_MODE env", () => {
 
   it("reserve mode validates WITHOUT stripe keys", async () => {
     process.env.PAYMENT_MODE = "reserve";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
     delete process.env.STRIPE_SECRET_KEY;
     delete process.env.STRIPE_WEBHOOK_SECRET;
     const { env } = await import("@/env");
@@ -81,6 +82,19 @@ describe("PAYMENT_MODE env", () => {
       spy.mockRestore();
     }
   });
+
+  it("rejects PAYMENT_MODE and NEXT_PUBLIC_PAYMENT_MODE when they disagree", async () => {
+    process.env.PAYMENT_MODE = "reserve";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "stripe";
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(import("@/env")).rejects.toThrow(/environment validation failed/i);
+      const printed = spy.mock.calls.map((c) => c.join(" ")).join("\n");
+      expect(printed).toContain("NEXT_PUBLIC_PAYMENT_MODE");
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe("reserve-mode guards", () => {
@@ -89,6 +103,7 @@ describe("reserve-mode guards", () => {
 
   it("createBookingCheckout throws conflict in reserve mode", async () => {
     process.env.PAYMENT_MODE = "reserve";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
     const { createBookingCheckout } = await import("@/lib/payments/checkout");
     try {
       await createBookingCheckout("00000000-0000-0000-0000-000000000000", "http://localhost");
@@ -109,6 +124,7 @@ describe("reserve-mode guards", () => {
     }).returning();
 
     process.env.PAYMENT_MODE = "reserve";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
     const { expireStaleHolds } = await import("@/lib/payments/holds");
     const n = await expireStaleHolds(30);
     expect(n).toBe(0);

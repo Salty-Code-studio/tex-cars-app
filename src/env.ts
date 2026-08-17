@@ -220,6 +220,21 @@ const EnvSchema = z
         });
       }
     }
+
+    // PAYMENT_MODE (server) and NEXT_PUBLIC_PAYMENT_MODE (inlined into the
+    // client bundle at build time — see the Dockerfile builder stage) MUST
+    // agree. If they diverge, the server and the browser disagree about
+    // whether Stripe checkout runs, which can silently show/hide payment UI
+    // that doesn't match what the API actually does. Fail closed at boot
+    // rather than let that skew ship.
+    if (data.PAYMENT_MODE !== data.NEXT_PUBLIC_PAYMENT_MODE) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["NEXT_PUBLIC_PAYMENT_MODE"],
+        message:
+          "NEXT_PUBLIC_PAYMENT_MODE must equal PAYMENT_MODE (they must match: both control the same payment mode, one server-side and one baked into the client bundle)",
+      });
+    }
   });
 
 export type Env = z.infer<typeof EnvSchema>;

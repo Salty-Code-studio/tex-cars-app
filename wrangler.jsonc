@@ -1,0 +1,75 @@
+{
+  // Cloudflare Worker + Container config for the Tex Cars Phase 2 app.
+  // Design: docs/superpowers/specs/2026-08-03-tex-cars-cloudflare-golive-design.md
+  //
+  // The Worker (worker/index.ts) proxies to the container built from the app's
+  // existing Dockerfile and runs the hold-expiry cron. Non-secret config lives
+  // in `vars` below; secrets are set with `wrangler secret put` (see LAUNCH
+  // runbook) and NEVER committed here.
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tex-cars-app",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-05-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "containers": [
+    {
+      "image": "./Dockerfile",
+      "class_name": "TexCarsContainer",
+      "name": "tex-cars-app",
+      // Rolling deploys need >=2; keep low for a single-tenant backoffice.
+      "max_instances": 2,
+      // Valid instance types: lite | basic | standard-1..4. standard-1 = 4 GiB /
+      // 0.5 vCPU. Next.js SSR + native argon2 hashing OOMs `basic` (1 GiB), so
+      // standard-1 is the floor. (Cloudflare Containers limits, verified 2026-08.)
+      "instance_type": "standard-1"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "TexCarsContainer",
+        "name": "CONTAINER"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["TexCarsContainer"]
+    }
+  ],
+  // Custom domain for the app. ENABLE ONLY AFTER the tex-cars.com zone is active
+  // on Cloudflare (nameservers moved). Attaching a route for a zone Cloudflare
+  // doesn't yet manage will FAIL `wrangler deploy`, so the first deploy runs
+  // WITHOUT this (serves on the *.workers.dev URL); uncomment + redeploy, or add
+  // the custom domain in the dashboard (Worker > Settings > Domains & Routes),
+  // once the zone is live. This creates the proxied DNS record + TLS for app.
+  // "routes": [{ "pattern": "app.tex-cars.com", "custom_domain": true }],
+  "triggers": {
+    // Hold-expiry maintenance — was vercel.json's */15 cron.
+    "crons": ["*/15 * * * *"]
+  },
+  "vars": {
+    // Non-secret runtime config forwarded into the container by worker/index.ts.
+    // Secrets (SESSION_SECRET, DATABASE_URL, STRIPE_*, DATA_ENCRYPTION_KEY,
+    // CRON_SECRET, RESEND_API_KEY, UPSTASH_*) are set via `wrangler secret put`.
+    // TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are also secrets — set them with
+    // `wrangler secret put TELEGRAM_BOT_TOKEN` / `wrangler secret put
+    // TELEGRAM_CHAT_ID`, never here.
+    "NODE_ENV": "production",
+    "APP_ORIGIN": "https://app.tex-cars.com",
+    "CORS_ALLOWED_ORIGINS": "https://app.tex-cars.com,https://tex-cars.com,https://www.tex-cars.com",
+    "TRUST_PROXY": "true",
+    "EMAIL_FROM": "Tex Cars <bookings@tex-cars.com>",
+    "SESSION_TTL_SECONDS": "86400",
+    "SESSION_IDLE_TTL_SECONDS": "1800",
+    "LOG_LEVEL": "info",
+    // Pay-at-desk reservation mode (no Stripe checkout). Must match: both keys
+    // stay in sync, enforced by src/env.ts at boot (fail-closed if they diverge).
+    "PAYMENT_MODE": "reserve",
+    "NEXT_PUBLIC_PAYMENT_MODE": "reserve"
+  }
+}

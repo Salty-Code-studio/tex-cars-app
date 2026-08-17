@@ -13,10 +13,15 @@
 #   - Pinned base image (digest pinning recommended in your own registry).
 # =============================================================================
 
-ARG NODE_VERSION=20.18.1
+# Node 22 to match package.json engines (>=22.9.0) and the local/runtime Node.
+ARG NODE_VERSION=22.12.0
 
 # ---- deps: install production-capable node_modules (cached layer) ----
-FROM node:${NODE_VERSION}-bookworm-slim AS deps
+# --platform=linux/amd64 on EVERY stage: Cloudflare Containers only runs amd64
+# images, and this repo is built on Apple Silicon (arm64). Pinning the platform
+# makes `docker build` / `wrangler deploy` emit an amd64 image AND compile
+# argon2's native addon for amd64, regardless of the build host's architecture.
+FROM --platform=linux/amd64 node:${NODE_VERSION}-bookworm-slim AS deps
 WORKDIR /app
 # argon2 native build needs python3 + build toolchain in THIS stage only.
 RUN apt-get update \
@@ -27,26 +32,44 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 # ---- builder: compile the Next.js standalone output ----
-FROM node:${NODE_VERSION}-bookworm-slim AS builder
+FROM --platform=linux/amd64 node:${NODE_VERSION}-bookworm-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# `prebuild` validates env, but at build time secrets are absent; provide
-# build-only placeholders that satisfy the schema. These are NOT used at runtime.
-# Real secrets are injected when the container RUNS, not when it is built.
-ENV NODE_ENV=production \
+# `prebuild` (scripts/check-env.ts) imports src/env.ts, which validates the FULL
+# env schema and fails closed. At build time real secrets are absent, so provide
+# build-only placeholders that satisfy every REQUIRED field in src/env.ts. These
+# are NOT used at runtime — the real values are injected as Cloudflare container
+# secrets when the container RUNS (see wrangler.jsonc + LAUNCH runbook). Keep
+# this list in sync with the required fields in app/src/env.ts.
+# DOCKER_BUILD=1 tells next.config.ts to skip the in-build type-check/ESLint
+# worker (memory-heavy, OOMs a small Docker VM; already gated by npm run
+# typecheck/lint/test outside Docker). NODE_OPTIONS bounds the compile heap.
+#
+# NEXT_PUBLIC_PAYMENT_MODE is a `NEXT_PUBLIC_*` var, so Next.js INLINES it into
+# the client JS bundle at build time (it is not read from process.env at
+# runtime like the server-only vars above). It MUST be set here, and MUST
+# match the runtime PAYMENT_MODE the container is deployed with (see
+# wrangler.jsonc `vars` / src/env.ts's PAYMENT_MODE<->NEXT_PUBLIC_PAYMENT_MODE
+# cross-check) — otherwise the shipped client bundle shows stale
+# Stripe-checkout copy even though the server is running in reserve mode.
+ENV DOCKER_BUILD=1 \
+    NODE_OPTIONS=--max-old-space-size=3072 \
+    NODE_ENV=production \
     APP_ORIGIN=https://build.invalid \
     CORS_ALLOWED_ORIGINS=https://build.invalid \
-    JWT_ACCESS_SECRET=build_time_placeholder_value_at_least_32_chars_aaaa \
-    JWT_REFRESH_SECRET=build_time_placeholder_value_at_least_32_chars_bbbb \
-    SESSION_SECRET=build_time_placeholder_value_at_least_32_chars_cccc \
-    JWT_ISSUER=build \
-    JWT_AUDIENCE=build
+    SESSION_SECRET=buildonly_session_key_min_thirtytwo_chars_aaaaaaaa \
+    DATABASE_URL=pglite://memory \
+    DATA_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+    STRIPE_SECRET_KEY=sk_test_buildonly00000000000000000000 \
+    STRIPE_WEBHOOK_SECRET=whsec_buildonly00000000000000000000 \
+    PAYMENT_MODE=reserve \
+    NEXT_PUBLIC_PAYMENT_MODE=reserve
 RUN npm run build
 
 # ---- runner: minimal, non-root runtime ----
-FROM node:${NODE_VERSION}-bookworm-slim AS runner
+FROM --platform=linux/amd64 node:${NODE_VERSION}-bookworm-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \

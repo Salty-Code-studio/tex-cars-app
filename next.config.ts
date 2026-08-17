@@ -12,6 +12,15 @@ import type { NextConfig } from "next";
  *   (single source of truth) and applies uniformly to every response,
  *   including 404s and errors.
  */
+// When building the production CONTAINER IMAGE, the Dockerfile sets
+// DOCKER_BUILD=1. In that path only, skip Next's in-build type-check + ESLint
+// pass: it spawns a memory-heavy worker that OOMs (SIGKILL) inside a small
+// Docker VM, and it is REDUNDANT — `npm run typecheck`, `npm run lint`, and
+// `npm run test` already gate the exact same checks before any image is built
+// (locally and in CI). Every other build (local dev, Vercel, CI) keeps the
+// strict gates ON, so type/lint errors still fail those builds.
+const isContainerImageBuild = process.env.DOCKER_BUILD === "1";
+
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
@@ -26,12 +35,14 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/**": ["./node_modules/argon2/**", "./node_modules/@electric-sql/pglite/**"],
   },
-  // Fail the production build on type errors / lint errors. Do NOT disable these.
+  // Fail the production build on type errors / lint errors. Do NOT disable these
+  // for normal builds. They are only relaxed for the container-image build
+  // (DOCKER_BUILD=1), where the same checks already ran outside Docker.
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: isContainerImageBuild,
   },
   eslint: {
-    ignoreDuringBuilds: false,
+    ignoreDuringBuilds: isContainerImageBuild,
   },
 };
 

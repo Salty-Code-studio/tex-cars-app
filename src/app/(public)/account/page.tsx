@@ -11,8 +11,15 @@ function csrf() {
   return document.cookie.match(/(?:^|;\s*)(?:__Host-)?csrf=([^;]+)/)?.[1] ?? "";
 }
 
+const RESERVE_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "reserve";
+
 const money = (c: number, cur: string) => `${cur} ${(c / 100).toFixed(2)}`;
-const STATUS: Record<string, string> = { pending: "Awaiting payment", confirmed: "Confirmed", cancelled: "Cancelled", completed: "Completed" };
+const STATUS: Record<string, string> = {
+  pending: RESERVE_MODE ? "Awaiting confirmation" : "Awaiting payment",
+  confirmed: "Confirmed",
+  cancelled: "Cancelled",
+  completed: "Completed",
+};
 
 export default function AccountPage() {
   const [me, setMe] = useState<{ email: string } | null>(null);
