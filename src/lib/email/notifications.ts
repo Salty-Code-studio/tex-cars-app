@@ -12,7 +12,7 @@ import { sendAndLog, sendToMany } from "@/lib/email/send";
 import {
   bookingConfirmedEmail, adminNewBookingEmail, adminPaymentEmail,
 } from "@/lib/email/templates";
-import { notifyAdmin, sendOwnerWhatsApp } from "@/lib/notify";
+import { notifyAdmin, sendOwnerWhatsApp, sendOwnerTelegram } from "@/lib/notify";
 import { logger } from "@/lib/logger";
 import type { QuoteBreakdown } from "@/lib/booking/quote";
 
@@ -46,6 +46,7 @@ export async function notifyNewBooking(bookingId: string): Promise<void> {
       bookingId,
     });
     await sendOwnerWhatsApp(`New booking: ${ctx.vehicleName}, ${ctx.booking.startDate} → ${ctx.booking.endDate} (${ctx.customerEmail})`).catch(() => undefined);
+    await sendOwnerTelegram(`New booking: ${ctx.vehicleName}, ${ctx.booking.startDate} → ${ctx.booking.endDate} (${ctx.customerEmail})`).catch(() => undefined);
   } catch (e) {
     logger.error("notify_new_booking_failed", { bookingId, error: (e as Error).message });
   }

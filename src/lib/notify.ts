@@ -82,3 +82,24 @@ export async function sendOwnerWhatsApp(text: string): Promise<void> {
   });
   if (!res.ok) throw new Error(`whatsapp api ${res.status}`);
 }
+
+/**
+ * Outbound Telegram ping to the owner via the Bot API. DORMANT until
+ * TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID are set; until then it logs a skip so
+ * the alert path never breaks. (The owner must create a bot via @BotFather
+ * and grab the chat id — a shared channel token is NOT a push subscription.)
+ */
+export async function sendOwnerTelegram(text: string): Promise<void> {
+  const token = env.TELEGRAM_BOT_TOKEN;
+  const chatId = env.TELEGRAM_CHAT_ID;
+  if (!token || !chatId) {
+    logger.info("telegram_skipped_not_configured", {});
+    return;
+  }
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text }),
+  });
+  if (!res.ok) throw new Error(`telegram api ${res.status}`);
+}
