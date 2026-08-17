@@ -109,16 +109,29 @@ const EnvSchema = z
         "DATABASE_MIGRATION_URL must be a postgres:// URL or empty",
       ),
 
+    // Booking payment mode: "stripe" = online checkout (default), "reserve" =
+    // pay-at-desk reservations (no Stripe needed; owner confirms manually).
+    PAYMENT_MODE: z.enum(["stripe", "reserve"]).default("stripe"),
+    NEXT_PUBLIC_PAYMENT_MODE: z.enum(["stripe", "reserve"]).default("stripe"),
+
     // Stripe (payments). Prefer a RESTRICTED key (rk_) over a secret key (sk_).
+    // OPTIONAL at the field level — required-and-format-valid ONLY when
+    // PAYMENT_MODE="stripe" (enforced below by the schema-level superRefine).
+    // In reserve mode the keys may be absent, but if present they must still be
+    // format-valid (never silently accept a malformed key either way).
     STRIPE_SECRET_KEY: z
-      .string({ required_error: "STRIPE_SECRET_KEY is required" })
-      .refine((v) => !looksLikePlaceholder(v), { message: "STRIPE_SECRET_KEY still contains a placeholder value" })
-      .refine((v) => /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/.test(v), { message: "STRIPE_SECRET_KEY must be an sk_/rk_ key" }),
+      .string()
+      .refine((v) => v === "" || !looksLikePlaceholder(v), { message: "STRIPE_SECRET_KEY still contains a placeholder value" })
+      .refine((v) => v === "" || /^(sk|rk)_(test|live)_[A-Za-z0-9]+$/.test(v), { message: "STRIPE_SECRET_KEY must be an sk_/rk_ key" })
+      .optional()
+      .default(""),
     // Webhook signing secret for verifying inbound Stripe events.
     STRIPE_WEBHOOK_SECRET: z
-      .string({ required_error: "STRIPE_WEBHOOK_SECRET is required" })
-      .refine((v) => !looksLikePlaceholder(v), { message: "STRIPE_WEBHOOK_SECRET still contains a placeholder value" })
-      .refine((v) => /^whsec_[A-Za-z0-9]+$/.test(v), { message: "STRIPE_WEBHOOK_SECRET must start with whsec_" }),
+      .string()
+      .refine((v) => v === "" || !looksLikePlaceholder(v), { message: "STRIPE_WEBHOOK_SECRET still contains a placeholder value" })
+      .refine((v) => v === "" || /^whsec_[A-Za-z0-9]+$/.test(v), { message: "STRIPE_WEBHOOK_SECRET must start with whsec_" })
+      .optional()
+      .default(""),
 
     // 32-byte base64 key for AES-256-GCM field encryption (license PII).
     // Generate with: openssl rand -base64 32
@@ -183,6 +196,30 @@ const EnvSchema = z
     WHATSAPP_TOKEN: z.string().optional().default(""),
     WHATSAPP_PHONE_ID: z.string().optional().default(""),
     WHATSAPP_OWNER_TO: z.string().optional().default(""),
+
+    // Owner Telegram alerts. Dormant until BOTH are set (same contract as WhatsApp).
+    TELEGRAM_BOT_TOKEN: z.string().optional().default(""),
+    TELEGRAM_CHAT_ID: z.string().optional().default(""),
+  })
+  .superRefine((data, ctx) => {
+    // Stripe keys are only REQUIRED (beyond format-validity, already checked
+    // per-field above) when the app is actually taking online payments.
+    if (data.PAYMENT_MODE === "stripe") {
+      if (data.STRIPE_SECRET_KEY === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["STRIPE_SECRET_KEY"],
+          message: "STRIPE_SECRET_KEY is required when PAYMENT_MODE=stripe",
+        });
+      }
+      if (data.STRIPE_WEBHOOK_SECRET === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["STRIPE_WEBHOOK_SECRET"],
+          message: "STRIPE_WEBHOOK_SECRET is required when PAYMENT_MODE=stripe",
+        });
+      }
+    }
   });
 
 export type Env = z.infer<typeof EnvSchema>;

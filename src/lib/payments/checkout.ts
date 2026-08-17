@@ -6,6 +6,7 @@
  * payment_method_types) maximise conversion.
  */
 import { and, eq } from "drizzle-orm";
+import { env } from "@/env";
 import { getDb } from "@/lib/db/client";
 import { isUniqueViolation } from "@/lib/db/errors";
 import { bookings, payments, vehicles } from "@/lib/db/schema";
@@ -20,6 +21,12 @@ const LABEL: Record<"reservation_fee" | "deposit", string> = {
 };
 
 export async function createBookingCheckout(bookingId: string, origin: string): Promise<{ url: string }> {
+  // Pay-at-desk mode: no Stripe checkout exists at all. Refuse up front, before
+  // touching the DB or Stripe, so this never depends on Stripe being configured.
+  if (env.PAYMENT_MODE === "reserve") {
+    throw Errors.conflict("Online payment is disabled");
+  }
+
   const db = await getDb();
   const stripe = getStripe();
 
