@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+const RESERVE_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "reserve";
+
 interface ClassOption { class: string; fromDayCents: number; depositCents: number | null; cars: number; available: boolean | null; carSlug: string | null }
 interface Tier { id: string; name: string; dailyPriceCents: number; coverage: string; isDefault: boolean }
 interface AddOn { id: string; name: string; description: string; priceCents: number; pricing: "per_day" | "per_rental" }
@@ -97,6 +99,7 @@ export default function BookPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data?.error?.message ?? "We could not create your booking."); setBusy(false); return; }
+      if (RESERVE_MODE) { window.location.href = `/book/confirmation?id=${data.id}`; return; }
       const checkout = await fetch(`/api/bookings/${data.id}/checkout`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
       });
@@ -218,8 +221,14 @@ export default function BookPage() {
               <span>I accept the <a href="/policies/rental-terms" target="_blank">rental terms</a>, <a href="/policies/cancellation" target="_blank">cancellation policy</a>, and <a href="/policies/privacy" target="_blank">privacy policy</a>.</span>
             </label>
 
-            <button className="btn" disabled={busy || !acceptTerms || !(avail?.available)}>{busy ? "Reserving…" : "Reserve & pay"}</button>
-            <p className="note">You&apos;ll be taken to our secure Stripe checkout to pay the {paymentOption === "full_deposit" ? "deposit" : "reservation fee"}.</p>
+            <button className="btn" disabled={busy || !acceptTerms || !(avail?.available)}>
+              {busy ? "Reserving…" : RESERVE_MODE ? "Reserve now" : "Reserve & pay"}
+            </button>
+            <p className="note">
+              {RESERVE_MODE
+                ? "No payment needed today. You pay at pickup."
+                : `You'll be taken to our secure Stripe checkout to pay the ${paymentOption === "full_deposit" ? "deposit" : "reservation fee"}.`}
+            </p>
             <p className="msg err">{error}</p>
           </>
         )}

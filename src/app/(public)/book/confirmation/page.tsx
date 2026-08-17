@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+const RESERVE_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "reserve";
+
 interface Booking { id: string; status: string; startDate: string; endDate: string }
 
 export default function ConfirmationPage() {
@@ -34,8 +36,14 @@ export default function ConfirmationPage() {
       ) : !booking ? (
         <p>We&apos;ve received your request. Our team will be in touch shortly.</p>
       ) : confirmed ? (
-        <p>Payment received and your booking for {booking.startDate} to {booking.endDate} is confirmed.
-          We&apos;ll arrange delivery on WhatsApp. See you soon!</p>
+        RESERVE_MODE ? (
+          <p>Reservation confirmed. See you at pickup!</p>
+        ) : (
+          <p>Payment received and your booking for {booking.startDate} to {booking.endDate} is confirmed.
+            We&apos;ll arrange delivery on WhatsApp. See you soon!</p>
+        )
+      ) : RESERVE_MODE ? (
+        <p>Reservation received! Tex Cars will confirm your reservation shortly. You pay the deposit at pickup.</p>
       ) : (
         <p>Your booking for {booking.startDate} to {booking.endDate} is held. If you just paid, the
           confirmation lands in a moment. Our team will also reach out on WhatsApp.</p>
