@@ -38,6 +38,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
         <a href="/admin/fleet">Fleet &amp; pricing</a>
         <a href="/admin/catalog">Add-ons &amp; insurance</a>
         <a href="/admin/settings">Settings</a>
+        <a href="/admin/team">Team</a>
         <a href="/admin/policies">Policies</a>
         <a href="/admin/audit">Audit log</a>
         <a href="#" className="soon">Bookings (Plan 04)</a>

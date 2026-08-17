@@ -49,6 +49,7 @@ export default function AdminLoginPage() {
           value={password} onChange={(e) => setPassword(e.target.value)} />
       </div>
       <button className="btn" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+      <p className="auth-alt"><a href="/admin/forgot-password">Forgot password?</a></p>
       <p className="msg err" role="alert">{error}</p>
     </form>
   );
