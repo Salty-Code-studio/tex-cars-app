@@ -77,3 +77,13 @@ export function adminPaymentEmail(args: { vehicleName: string; amountCents: numb
       <p><strong>${args.vehicleName}</strong><br>${money(args.amountCents, args.currency)} from ${args.customerEmail}</p>`),
   };
 }
+
+export function passwordResetEmail(url: string): RenderedEmail {
+  return {
+    subject: "Reset your Tex Cars admin password",
+    html: shell("Reset your password", `
+      <p>Someone asked to reset the password for this admin account.</p>
+      <p><a href="${url}" style="color:${BRAND}">Choose a new password</a> (the link works for 30 minutes and can be used once).</p>
+      <p style="color:#828aa6;font-size:13px">If this was not you, you can ignore this email. Your password stays as it is.</p>`),
+  };
+}
