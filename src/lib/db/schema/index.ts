@@ -7,6 +7,7 @@ export * from "./bookings";
 export * from "./licenses";
 export * from "./payments";
 export * from "./admin";
+export * from "./admin-reset-tokens";
 export * from "./logs";
 export * from "./sessions";
 export * from "./auth-tokens";

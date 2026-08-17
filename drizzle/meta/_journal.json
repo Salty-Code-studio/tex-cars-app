@@ -99,6 +99,13 @@
       "when": 1782069191314,
       "tag": "0013_steady_purple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786970199526,
+      "tag": "0014_majestic_sunspot",
+      "breakpoints": true
     }
   ]
 }
