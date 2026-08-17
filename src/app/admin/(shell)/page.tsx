@@ -449,6 +449,11 @@ function BookingPanel({ p, vehicles, onDone, onError, onClose }: {
     try { await api(`/api/admin/bookings/${p.bar.id}/cancel`, {}); await onDone("Booking cancelled."); }
     catch (err) { onError((err as ApiError).message); setBusy(false); }
   }
+  async function confirm() {
+    if (busy) return; setBusy(true);
+    try { await api(`/api/admin/bookings/${p.bar.id}/confirm`, {}); await onDone("Reservation confirmed."); }
+    catch (err) { onError((err as ApiError).message); setBusy(false); }
+  }
   async function move(e: React.FormEvent) {
     e.preventDefault(); setBusy(true);
     try {
@@ -464,6 +469,7 @@ function BookingPanel({ p, vehicles, onDone, onError, onClose }: {
       {!showMove ? (
         <div className="pl-pop-actions">
           <button className="btn btn--quiet" onClick={() => setShowMove(true)}>Move…</button>
+          {p.bar.status === "pending" && <button className="btn" disabled={busy} onClick={confirm}>Confirm reservation</button>}
           {(p.bar.status === "pending" || p.bar.status === "confirmed") && <button className="btn danger" disabled={busy} onClick={cancel}>Cancel rental</button>}
           <button className="btn btn--quiet" onClick={onClose}>Close</button>
         </div>

@@ -51,6 +51,21 @@ export function bookingConfirmedEmail(args: {
   };
 }
 
+/**
+ * Manual admin confirm from the ops board (no payment webhook involved, e.g. a
+ * cash-deposit reservation the desk approved). Deliberately carries NO
+ * payment/paid language, unlike bookingConfirmedEmail.
+ */
+export function reservationConfirmedEmail(args: { vehicleName: string; startDate: string; endDate: string }): RenderedEmail {
+  return {
+    subject: "Your Tex Cars reservation is confirmed",
+    html: shell("Reservation confirmed", `
+      <p>Good news, your reservation is confirmed.</p>
+      <p><strong>${args.vehicleName}</strong><br>${args.startDate} to ${args.endDate}</p>
+      <p>You pay the deposit at pickup. See you soon!</p>`),
+  };
+}
+
 export function bookingCancelledEmail(args: { vehicleName: string; startDate: string; endDate: string }): RenderedEmail {
   return {
     subject: `Your ${args.vehicleName} booking was cancelled`,

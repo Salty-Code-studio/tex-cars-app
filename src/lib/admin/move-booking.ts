@@ -128,3 +128,27 @@ export async function cancelBookingAdmin(id: string) {
     .returning();
   return updated!;
 }
+
+/**
+ * Admin confirm from the board. Manually promotes a pending reservation
+ * straight to confirmed (e.g. a cash deposit collected at the desk), without
+ * an online payment webhook. Only pending → confirmed is allowed; anything
+ * else (already confirmed, cancelled, completed) is a no-op conflict.
+ */
+export async function confirmBookingAdmin(id: string) {
+  const db = await getDb();
+  const [booking] = await db.select().from(bookings).where(eq(bookings.id, id));
+  if (!booking) throw Errors.notFound("Booking not found");
+  if (booking.status !== "pending") {
+    throw Errors.conflict("This booking can no longer be confirmed");
+  }
+  // Conditional write: the status predicate makes the transition atomic, so a
+  // booking cancelled between the read above and this write (expire-holds cron,
+  // a second admin) can never be resurrected to confirmed.
+  const [updated] = await db.update(bookings)
+    .set({ status: "confirmed", updatedAt: new Date() })
+    .where(and(eq(bookings.id, id), eq(bookings.status, "pending")))
+    .returning();
+  if (!updated) throw Errors.conflict("This booking can no longer be confirmed");
+  return updated;
+}

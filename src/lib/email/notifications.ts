@@ -10,7 +10,7 @@ import { bookings, vehicles, customers, payments } from "@/lib/db/schema";
 import { getSettings } from "@/lib/admin/settings";
 import { sendAndLog, sendToMany } from "@/lib/email/send";
 import {
-  bookingConfirmedEmail, adminNewBookingEmail, adminPaymentEmail,
+  bookingConfirmedEmail, adminNewBookingEmail, adminPaymentEmail, reservationConfirmedEmail,
 } from "@/lib/email/templates";
 import { notifyAdmin, sendOwnerWhatsApp, sendOwnerTelegram } from "@/lib/notify";
 import { logger } from "@/lib/logger";
@@ -49,6 +49,32 @@ export async function notifyNewBooking(bookingId: string): Promise<void> {
     await sendOwnerTelegram(`New booking: ${ctx.vehicleName}, ${ctx.booking.startDate} → ${ctx.booking.endDate} (${ctx.customerEmail})`).catch(() => undefined);
   } catch (e) {
     logger.error("notify_new_booking_failed", { bookingId, error: (e as Error).message });
+  }
+}
+
+/**
+ * Admin manually promoted a pending booking to confirmed from the ops board
+ * (e.g. cash deposit collected at the desk) — NOT the paid-webhook path, so
+ * this deliberately says nothing about a payment having been received.
+ */
+export async function notifyReservationConfirmed(bookingId: string): Promise<void> {
+  try {
+    const ctx = await context(bookingId);
+    if (!ctx) return;
+    await sendAndLog({
+      to: ctx.customerEmail, type: "reservation_confirmed",
+      ...reservationConfirmedEmail({
+        vehicleName: ctx.vehicleName, startDate: ctx.booking.startDate, endDate: ctx.booking.endDate,
+      }),
+    });
+    await notifyAdmin({
+      level: "info", type: "booking.confirmed_manual", title: "Reservation confirmed",
+      body: `${ctx.vehicleName} · ${ctx.booking.startDate} → ${ctx.booking.endDate} · ${ctx.customerEmail}`,
+      bookingId,
+    });
+    await sendOwnerTelegram(`Reservation confirmed: ${ctx.vehicleName}, ${ctx.booking.startDate} → ${ctx.booking.endDate} (${ctx.customerEmail})`).catch(() => undefined);
+  } catch (e) {
+    logger.error("notify_reservation_confirmed_failed", { bookingId, error: (e as Error).message });
   }
 }
 
