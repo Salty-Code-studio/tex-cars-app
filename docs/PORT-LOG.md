@@ -36,7 +36,7 @@ Test Files  42 passed (42)
 
 | Hash | Subject | Decision |
 |---|---|---|
-| 6f5e08c | FleetDesk: booking + operations platform for small rental operators | ? |
+| 6f5e08c | FleetDesk: booking + operations platform for small rental operators | skip (FD root snapshot of Tex's own base at fork time; nothing to port, controller-adjudicated) |
 | 2344d3e | Admin redesign: saltycodestudio "Sand & Surf" design language | port |
 | 369502f | feat(ui): Sand & Surf admin kit + branded DatePicker/Select | port |
 | a288900 | feat(marketing): public funnel (landing, pricing, early-access) + lead capture | skip |
