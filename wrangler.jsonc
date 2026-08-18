@@ -16,7 +16,10 @@
   },
   "containers": [
     {
-      "image": "./Dockerfile",
+      // Pre-pushed via crane from the HOST network (Colima's NAT kills large
+      // registry uploads; build with `wrangler containers build`, `docker save`,
+      // then `crane push`). Swap back to "./Dockerfile" only if that's fixed.
+      "image": "registry.cloudflare.com/8cd6b08425f14fe7e1f52e4a10109545/tex-cars-app:golive",
       "class_name": "TexCarsContainer",
       "name": "tex-cars-app",
       // Rolling deploys need >=2; keep low for a single-tenant backoffice.
@@ -60,8 +63,9 @@
     // `wrangler secret put TELEGRAM_BOT_TOKEN` / `wrangler secret put
     // TELEGRAM_CHAT_ID`, never here.
     "NODE_ENV": "production",
-    "APP_ORIGIN": "https://app.tex-cars.com",
-    "CORS_ALLOWED_ORIGINS": "https://app.tex-cars.com,https://tex-cars.com,https://www.tex-cars.com",
+    // Temporary workers.dev phase; switch to app.tex-cars.com at the domain cutover.
+    "APP_ORIGIN": "https://tex-cars-app.saltycodestudio-site.workers.dev",
+    "CORS_ALLOWED_ORIGINS": "https://tex-cars-app.saltycodestudio-site.workers.dev,https://salty-code-studio.github.io,https://tex-cars.com,https://www.tex-cars.com",
     "TRUST_PROXY": "true",
     "EMAIL_FROM": "Tex Cars <bookings@tex-cars.com>",
     "SESSION_TTL_SECONDS": "86400",
