@@ -16,6 +16,7 @@ import { SESSION_COOKIE, CSRF_COOKIE } from "@/lib/auth/cookies";
 import { confirmBookingAdmin, cancelBookingAdmin } from "@/lib/admin/move-booking";
 import { notifyReservationConfirmed } from "@/lib/email/notifications";
 import { reservationConfirmedEmail } from "@/lib/email/templates";
+import { atAruba } from "@/lib/time/format";
 import { expectReject } from "./util";
 
 const cookieState = vi.hoisted(() => ({ header: "" }));
@@ -54,9 +55,11 @@ beforeAll(async () => {
 
 async function makePendingBooking(opts: { email: string; startDate: string; endDate: string; status?: "pending" | "confirmed" | "cancelled" | "completed" }) {
   const [c] = await db.insert(customers).values({ email: opts.email, name: "Confirm Test" }).returning();
+  const startAt = atAruba(opts.startDate, "09:00");
+  const endAt = atAruba(opts.endDate, "09:00");
   const [bk] = await db.insert(bookings).values({
-    vehicleId, customerId: c!.id, startDate: opts.startDate, endDate: opts.endDate,
-    bufferEndDate: opts.endDate, status: opts.status ?? "pending",
+    vehicleId, customerId: c!.id, startAt, endAt,
+    bufferEndAt: endAt, status: opts.status ?? "pending",
     priceBreakdown: { subtotalCents: 12000, currency: "USD" }, paymentOption: "cash_deposit",
     acceptedPolicyVersion: 0, acceptedAt: new Date(),
     idempotencyKey: `confirm-${opts.email}-${opts.startDate}-${opts.endDate}`,
@@ -161,7 +164,7 @@ describe("notifyReservationConfirmed", () => {
     expect(log).toBeDefined();
     expect(log!.type).toBe("reservation_confirmed");
 
-    const rendered = reservationConfirmedEmail({ vehicleName: "Confirm Car", startDate: "2029-08-01", endDate: "2029-08-05" });
+    const rendered = reservationConfirmedEmail({ vehicleName: "Confirm Car", startAt: atAruba("2029-08-01", "09:00"), endAt: atAruba("2029-08-05", "09:00") });
     expect(rendered.subject).toBe("Your Tex Cars reservation is confirmed");
     expect(rendered.html.toLowerCase()).not.toContain("payment");
     expect(rendered.html.toLowerCase()).not.toContain("paid");

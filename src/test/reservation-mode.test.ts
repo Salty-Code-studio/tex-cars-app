@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vite
 import { runMigrations } from "@/lib/db/migrate";
 import { getDb } from "@/lib/db/client";
 import { vehicles, customers, bookings } from "@/lib/db/schema";
+import { atAruba } from "@/lib/time/format";
 import { eq } from "drizzle-orm";
 
 /**
@@ -118,7 +119,7 @@ describe("reserve-mode guards", () => {
   it("expireStaleHolds returns 0 and cancels nothing in reserve mode", async () => {
     const old = new Date(Date.now() - 60 * 60_000); // 60 min ago, well past any TTL
     const [b] = await db.insert(bookings).values({
-      vehicleId, customerId, startDate: "2029-01-01", endDate: "2029-01-05", bufferEndDate: "2029-01-06",
+      vehicleId, customerId, startAt: atAruba("2029-01-01", "09:00"), endAt: atAruba("2029-01-05", "09:00"), bufferEndAt: atAruba("2029-01-06", "09:00"),
       status: "pending", priceBreakdown: { subtotalCents: 1 }, paymentOption: "reservation_fee",
       acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: "rm-stale-hold", createdAt: old,
     }).returning();

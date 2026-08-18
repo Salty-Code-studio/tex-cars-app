@@ -12,6 +12,7 @@ import { getDb, closeDb } from "../src/lib/db/client";
 import { vehicles, customers, bookings } from "../src/lib/db/schema";
 import { getSettings } from "../src/lib/admin/settings";
 import { quote } from "../src/lib/booking/quote";
+import { atAruba, addHoursIso } from "../src/lib/time/format";
 import { ne, like, eq, and } from "drizzle-orm";
 
 // Anchor to "today" so the rentals sit in the board's opening window.
@@ -76,7 +77,9 @@ async function main() {
     const startDate = iso(so);
     const endDate = iso(eo);
     const days = Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000);
-    const bufferEndDate = iso(eo + settings.turnaroundBufferDays);
+    const startAt = atAruba(startDate, "09:00");
+    const endAt = atAruba(endDate, "09:00");
+    const bufferEndAt = addHoursIso(endAt, settings.turnaroundBufferHours);
     const breakdown = quote({
       days,
       vehicle: { priceDayCents: v.priceDayCents, priceWeekCents: v.priceWeekCents, priceMonthCents: v.priceMonthCents, depositCents: v.depositCents },
@@ -88,9 +91,9 @@ async function main() {
     await db.insert(bookings).values({
       vehicleId: v.id,
       customerId: custIds[ci]!,
-      startDate,
-      endDate,
-      bufferEndDate,
+      startAt,
+      endAt,
+      bufferEndAt,
       status,
       source,
       notes: source === "manual" ? "Walk-in rental (demo)" : null,
