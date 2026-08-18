@@ -43,13 +43,13 @@ Test Files  42 passed (42)
 | 72f563d | feat(book): Sand & Surf booking flow + step-by-step animated wizard | port |
 | a7ef368 | feat(admin): modernize admin (modals, toasts, command palette, custom controls) | port |
 | 8c0cfc8 | docs: redesign + funnel/wizard/controls specs | skip |
-| 32b6ea4 | fix(security): close OTP-leak account takeover + CSRF-guard guest booking/checkout | port |
-| 1e0c855 | fix(security): cap per-victim rate limits independent of spoofable fingerprint | port |
+| 32b6ea4 | fix(security): close OTP-leak account takeover + CSRF-guard guest booking/checkout | port (ported, Task 2 `24cbded`) |
+| 1e0c855 | fix(security): cap per-victim rate limits independent of spoofable fingerprint | port (ported, Task 2 `9264192`) |
 | f525d5a | fix(security): add CSRF origin guard to /api/early-access | skip |
 | 39f96f3 | docs(security): production hardening notes from the red-team (secrets-at-rest, rate-limit IP) | skip |
 | 5af8b32 | feat(demo): env-gated one-click demo door for the ops app | skip |
 | 724fec7 | chore(deploy): trigger Vercel production build (feat as prod branch) | skip |
-| 713c11c | fix(security): upgrade Next.js 15.3.3 -> 15.5.20 (secure backport line) | port |
+| 713c11c | fix(security): upgrade Next.js 15.3.3 -> 15.5.20 (secure backport line) | port (ported, Task 2 `16c1c9f`) |
 | 2a0a68e | docs: feature wave design spec (time, payments+extensions, alerts, check-in/out, under-21, fleet, reports, staff logins) | skip |
 | 87bbbc3 | docs: cross-plan seams for the 2026-07 feature wave | skip |
 | 3f8136b | docs: nine wave implementation plans (time, payments+extensions, alerts, fleet, young-driver, check-in/out, reports, staff, Tex port) | skip |
