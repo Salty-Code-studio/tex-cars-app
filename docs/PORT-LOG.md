@@ -25,7 +25,7 @@ Test Files  42 passed (42)
 
 ## Decision legend
 
-- **port** - carries FleetDesk feature/fix work Tex Cars should gain; a later task applies it (cherry-pick or whole-file copy per that task's own mechanics). This ledger only records the decision, not the apply method.
+- **port** - carries FleetDesk feature/fix work Tex Cars should gain; a later task applies it (cherry-pick or whole-file copy per that task's own mechanics). This ledger only records the decision, not the apply method. One row uses the variant `port (danger)`: still port, but the commit carries the PROD-DANGEROUS 0016 migration (see Note 4).
 - **skip** - never port. Either FleetDesk-only surface with no Tex equivalent need (marketing funnel, early-access CSRF, demo door), a docs-only commit, or a verified no-op.
 - **defer-task-8** - desk-mode / Telegram-approval feature lineage. Decision owned by Task 8's memo (`docs/superpowers/specs/2026-08-18-tex-desk-vs-reserve-decision.md`), not applied by this plan.
 - **?** - inspected, does not fit a rule cleanly; flagged for controller adjudication (see Notes).
@@ -201,17 +201,17 @@ Test Files  42 passed (42)
 
 - Total commits: 160
 - `port`: 118 (one flagged `port (danger)`)
-- `skip`: 10
+- `skip`: 11
 - `defer-task-8`: 31
-- `?`: 1
+- `?`: 0
 
 ## Notes
 
-1. **`6f5e08c` (root commit, flagged `?`).** This is FleetDesk's own repo-root commit: no parent, 231 files, 41007 insertions, dated 2026-06-23 - the entire FleetDesk codebase squashed at fork time. Tex Cars has its own separate root history starting 2026-06-11 (`0d86cf2` "chore: scaffold from fort nextjs-route-handlers starter"). There is no sane cherry-pick or whole-file-copy target for a 231-file root commit against an already-established, differently-structured codebase, and no downstream task (Task 2 starts at `32b6ea4`, Task 3 copies whole files as of `713c11c`) claims it. Recommend the controller confirm this row stays informational-only (row kept in the ledger for completeness; no action taken against it), rather than porting or skipping it as a unit.
+1. **`6f5e08c` (root commit, flagged `?`).** This is FleetDesk's own repo-root commit: no parent, 231 files, 41007 insertions, dated 2026-06-23 - the entire FleetDesk codebase squashed at fork time. Tex Cars has its own separate root history starting 2026-06-11 (`0d86cf2` "chore: scaffold from fort nextjs-route-handlers starter"). There is no sane cherry-pick or whole-file-copy target for a 231-file root commit against an already-established, differently-structured codebase, and no downstream task (Task 2 starts at `32b6ea4`, Task 3 copies whole files as of `713c11c`) claims it. ADJUDICATED by the controller 2026-08-18: decision `skip` (the commit is FD's snapshot of Tex's own base at fork time, so there is nothing to port; the row stays in the ledger for completeness only).
 
 2. **Breakdown-swap disambiguation.** A literal `git rev-list fleetdesk/feat/desk-mode-telegram-approval --not fleetdesk/feat/wave-2026-07` returns 39 commits, not the 31 marked `defer-task-8` above. The extra 8 (`2ff10f1`, `6f1f83c`, `c0009fa`, `706456d`, `fbb3bb9`, `f2f2b8b`, `6e7bb14`, `a046f60`) plus `d478dd4` are topologically "between" `feat/wave-2026-07`'s merge point and the desk-mode branch's creation point, but they are not desk-mode commits: `git merge-base fleetdesk/main fleetdesk/feat/breakdown-swap` = `a046f60`, confirming these 8 are `feat/breakdown-swap`'s own history (merged to `main` before desk-mode branched off), and `d478dd4` is a mobile-adaptation commit made directly to `main` right after. This matches the control plan's Task 5 scope exactly ("breakdown swap, day-zoom hour grid, mobile pass" and "ledger entries between the wave-08 tail and the desk-mode lineage"). These 9 are classified `port` (except `f2f2b8b`, docs-only, `skip`) rather than `defer-task-8`. The true desk-mode-only range is `87e21bc` through `7813bcc` (30 commits, confirmed as `git merge-base fleetdesk/main fleetdesk/feat/desk-mode-telegram-approval` = `7813bcc`), plus `c96405a` added explicitly per the brief since it sits on `main` after the desk-mode lineage rebased in.
 
-3. **`0014_hot_mesmero` (migration file, leads/marketing).** Added only in `a288900` (drizzle/0014_hot_mesmero.sql, the marketing/early-access feature), already `skip`. Verified via `git log -S"hot_mesmero"` across all fetched refs: no other `fleetdesk/main` commit touches it. Per the control plan's Migration Rule, Tex's own idx-14 migration is `0014_majestic_sunspot` (admin_reset_tokens, Tex-only) - a different, unrelated migration at the same index. FD's `0014_hot_mesmero` is never ported, consistent with `a288900` = skip.
+3. **`0014_hot_mesmero` (migration file, leads/marketing).** Added only in `a288900` (drizzle/0014_hot_mesmero.sql, the marketing/early-access feature), already `skip`. Verified via `git log -S"hot_mesmero"` across all fetched refs: the only other hit is `3f8136b`, a docs-only wave-plan commit that mentions the filename in prose without touching the file (already `skip` via the docs-only rule). Per the control plan's Migration Rule, Tex's own idx-14 migration is `0014_majestic_sunspot` (admin_reset_tokens, Tex-only) - a different, unrelated migration at the same index. FD's `0014_hot_mesmero` is never ported, consistent with `a288900` = skip.
 
 4. **`8a26078` flagged `port (danger)`.** This commit adds `drizzle/0016_high_gladiator.sql` (bookings `date` -> `timestamptz` with a 09:00 America/Aruba backfill and a gist constraint rebuild). Per the control plan's Global Constraints: "FD `0016_high_gladiator` is PROD-DANGEROUS... It is fine on fresh local PGlite... the live-data rehearsal lives in Task 9's runbook and is NOT executed by this plan." Still `port` for local/dev purposes; the prod rollout of this specific migration is gated entirely on Task 9 (`GO-LIVE-PARITY.md`) and Mo.
 
