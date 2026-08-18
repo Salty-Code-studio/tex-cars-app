@@ -3,6 +3,7 @@
  * dash-free (house writing rule). Pure functions → unit-testable.
  */
 import { formatDateTime } from "@/lib/time/format";
+import { siteConfig } from "@/lib/site-config";
 
 export interface RenderedEmail {
   subject: string;
@@ -13,6 +14,10 @@ const BRAND = "#2348c7";
 const INK = "#15192f";
 
 function shell(title: string, body: string): string {
+  // Brand div/footer stay Tex's own literal markup: the two-tone TEX/CARS
+  // color split and the full "Tex Cars & Leasing" legal name are not things
+  // siteConfig's single short display string (see loginCodeEmail below) can
+  // represent. subject lines that need only the short name use siteConfig.
   return `<div style="font-family:-apple-system,Segoe UI,Roboto,Inter,sans-serif;color:${INK};max-width:520px;margin:0 auto;padding:24px">
   <div style="font-weight:800;letter-spacing:.03em;font-size:18px;margin-bottom:20px">TEX<span style="color:#f15f2c">CARS</span></div>
   <h1 style="font-size:20px;margin:0 0 12px">${title}</h1>
@@ -25,7 +30,7 @@ const money = (cents: number, currency: string) => `${currency} ${(cents / 100).
 
 export function loginCodeEmail(args: { code: string; link: string }): RenderedEmail {
   return {
-    subject: "Your Tex Cars sign-in code",
+    subject: `Your ${siteConfig.siteName} sign-in code`,
     html: shell("Sign in to your bookings", `
       <p>Use this code to sign in. It is good for 15 minutes.</p>
       <p style="font-size:30px;font-weight:800;letter-spacing:6px;color:${BRAND};margin:16px 0">${args.code}</p>
