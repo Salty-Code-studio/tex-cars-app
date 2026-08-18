@@ -28,6 +28,12 @@ body { margin: 0; font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Inter, sans-
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; width: 100%; padding: .7rem 1rem; border: 0; border-radius: 9px; background: var(--blue); color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
 .btn:hover { background: var(--blue-dark); }
+.demo-panel { margin: .25rem 0 1.1rem; }
+.btn-demo { background: var(--orange); box-shadow: 0 8px 18px -10px rgba(241,95,44,.7); }
+.btn-demo:hover { background: #d94e1f; }
+.demo-hint { margin: .55rem 0 0; font-size: .82rem; color: var(--ink-soft); text-align: center; }
+.demo-divider { display: flex; align-items: center; gap: .7rem; margin: 1.15rem 0 .2rem; color: var(--ink-soft); font-size: .78rem; }
+.demo-divider::before, .demo-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 .btn:disabled { opacity: .55; cursor: default; }
 .btn--quiet { background: transparent; color: var(--ink-soft); font-weight: 600; width: auto; padding: .4rem .6rem; }
 .btn--quiet:hover { background: var(--surface); color: var(--navy); }

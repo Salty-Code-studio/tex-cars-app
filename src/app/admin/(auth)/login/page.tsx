@@ -4,12 +4,26 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { api, type ApiError } from "../../client";
 
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+
 export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  async function enterDemo() {
+    setError("");
+    setBusy(true);
+    try {
+      await api("/api/admin/auth/demo", {});
+      router.push("/admin");
+    } catch {
+      setError("The demo is not available right now. Please try again shortly.");
+      setBusy(false);
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -38,6 +52,15 @@ export default function AdminLoginPage() {
         TEX<b style={{ color: "var(--orange)" }}>CARS</b> Admin<span className="brand-dot" />
       </h1>
       <p className="sub">Sign in to the operations dashboard.</p>
+      {DEMO_MODE && (
+        <div className="demo-panel">
+          <button type="button" className="btn btn-demo" onClick={enterDemo} disabled={busy}>
+            {busy ? "Opening…" : "Enter the live demo →"}
+          </button>
+          <p className="demo-hint">No sign-in needed. Explore the full operations dashboard with sample rentals.</p>
+          <div className="demo-divider"><span>or sign in</span></div>
+        </div>
+      )}
       <div className="field">
         <label htmlFor="email">Email</label>
         <input id="email" type="email" autoComplete="username" required

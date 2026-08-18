@@ -50,7 +50,7 @@
   // WITHOUT this (serves on the *.workers.dev URL); uncomment + redeploy, or add
   // the custom domain in the dashboard (Worker > Settings > Domains & Routes),
   // once the zone is live. This creates the proxied DNS record + TLS for app.
-  // "routes": [{ "pattern": "app.tex-cars.com", "custom_domain": true }],
+  "routes": [{ "pattern": "app.tex-cars.com", "custom_domain": true }],
   "triggers": {
     // Hold-expiry maintenance — was vercel.json's */15 cron.
     "crons": ["*/15 * * * *"]
@@ -63,9 +63,10 @@
     // `wrangler secret put TELEGRAM_BOT_TOKEN` / `wrangler secret put
     // TELEGRAM_CHAT_ID`, never here.
     "NODE_ENV": "production",
-    // Temporary workers.dev phase; switch to app.tex-cars.com at the domain cutover.
-    "APP_ORIGIN": "https://tex-cars-app.saltycodestudio-site.workers.dev",
-    "CORS_ALLOWED_ORIGINS": "https://tex-cars-app.saltycodestudio-site.workers.dev,https://salty-code-studio.github.io,https://tex-cars.com,https://www.tex-cars.com",
+    // Branded domain since 2026-08-18 (zone on Cloudflare). workers.dev stays
+    // in CORS as a fallback origin during the transition.
+    "APP_ORIGIN": "https://app.tex-cars.com",
+    "CORS_ALLOWED_ORIGINS": "https://app.tex-cars.com,https://tex-cars.com,https://www.tex-cars.com,https://tex-cars-app.saltycodestudio-site.workers.dev,https://salty-code-studio.github.io",
     "TRUST_PROXY": "true",
     "EMAIL_FROM": "Tex Cars <bookings@tex-cars.com>",
     "SESSION_TTL_SECONDS": "86400",

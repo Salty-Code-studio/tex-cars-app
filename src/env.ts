@@ -189,6 +189,15 @@ const EnvSchema = z
     // the cron endpoint refuses to run without it.
     CRON_SECRET: z.string().optional().default(""),
 
+    // Demo mode — OPTIONAL. When "true", exposes POST /api/admin/auth/demo, a
+    // one-click door that mints an admin session for the seeded demo admin
+    // (demo@tex-cars.local) with NO password or MFA, so a viewer can click
+    // straight into the ops dashboard. DEFAULT FALSE (fail-closed): a real
+    // deployment MUST leave this unset so the demo door 404s and admin access
+    // stays password + MFA only. Pair with NEXT_PUBLIC_DEMO_MODE=true to show
+    // the "Enter the live demo" button on the sign-in page.
+    DEMO_MODE: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
+
     // Owner WhatsApp alerts (Meta WhatsApp Business Cloud API) — OPTIONAL. With
     // all three set, owner alerts also push to WhatsApp; otherwise that channel
     // is skipped and only email is used. The owner must provision a WhatsApp

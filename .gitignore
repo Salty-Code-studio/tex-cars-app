@@ -27,3 +27,4 @@ npm-debug.log*
 
 # TypeScript incremental build state
 *.tsbuildinfo
+.mcp.json
