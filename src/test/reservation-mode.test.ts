@@ -120,7 +120,7 @@ describe("reserve-mode guards", () => {
     const old = new Date(Date.now() - 60 * 60_000); // 60 min ago, well past any TTL
     const [b] = await db.insert(bookings).values({
       vehicleId, customerId, startAt: atAruba("2029-01-01", "09:00"), endAt: atAruba("2029-01-05", "09:00"), bufferEndAt: atAruba("2029-01-06", "09:00"),
-      status: "pending", priceBreakdown: { subtotalCents: 1 }, paymentOption: "reservation_fee",
+      status: "pending", priceBreakdown: { subtotalCents: 1 }, paymentOption: "deposit",
       acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: "rm-stale-hold", createdAt: old,
     }).returning();
 

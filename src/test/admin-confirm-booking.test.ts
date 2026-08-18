@@ -60,7 +60,7 @@ async function makePendingBooking(opts: { email: string; startDate: string; endD
   const [bk] = await db.insert(bookings).values({
     vehicleId, customerId: c!.id, startAt, endAt,
     bufferEndAt: endAt, status: opts.status ?? "pending",
-    priceBreakdown: { subtotalCents: 12000, currency: "USD" }, paymentOption: "cash_deposit",
+    priceBreakdown: { subtotalCents: 12000, currency: "USD" }, paymentOption: "full",
     acceptedPolicyVersion: 0, acceptedAt: new Date(),
     idempotencyKey: `confirm-${opts.email}-${opts.startDate}-${opts.endDate}`,
   }).returning();
