@@ -53,16 +53,16 @@ Test Files  42 passed (42)
 | 2a0a68e | docs: feature wave design spec (time, payments+extensions, alerts, check-in/out, under-21, fleet, reports, staff logins) | skip |
 | 87bbbc3 | docs: cross-plan seams for the 2026-07 feature wave | skip |
 | 3f8136b | docs: nine wave implementation plans (time, payments+extensions, alerts, fleet, young-driver, check-in/out, reports, staff, Tex port) | skip |
-| 2eea63b | feat(time): Aruba wall-time helpers + isoDateTime validation | port |
-| 44b42c2 | fix(time): scope parseTs offset padding to strings with a time component | port |
-| 8a26078 | feat(time): timestamptz cutover for bookings, blocks, buffer hours, tstzrange exclusion incl picked_up | port (danger) |
-| e3ddde0 | feat(time): business hours + 30 minute steps for public pickup/return times | port |
-| 4a471a1 | feat(time): TimeSelect + wizard pickup/return times + opening hours settings | port |
-| 78ca13e | fix(time): stop label.fld/.form-grid select rules from overriding TimeSelect | port |
-| 79da67c | feat(board): fractional time bars, bar states, timed blocks and time editing | port |
-| a30ccbc | feat(desk): advisory block/blackout conflicts with explicit override on manual bookings and moves | port |
-| c90d574 | feat(time): human wall-time rendering across emails, confirmation, account, Stripe line | port |
-| 7220eea | feat(ui): month + year quick-jump dropdowns in DatePicker calendar header | port |
+| 2eea63b | feat(time): Aruba wall-time helpers + isoDateTime validation | port (ported, Task 4 wave 01 `6d4d37b`) |
+| 44b42c2 | fix(time): scope parseTs offset padding to strings with a time component | port (ported, Task 4 wave 01 `72c3b85`) |
+| 8a26078 | feat(time): timestamptz cutover for bookings, blocks, buffer hours, tstzrange exclusion incl picked_up | port (danger) (ported, Task 4 wave 01 `1e7b189`, snapshot-chain fix `f5f7f64`; see Notes 4 and 8) |
+| e3ddde0 | feat(time): business hours + 30 minute steps for public pickup/return times | port (ported, Task 4 wave 01 `cba0648`) |
+| 4a471a1 | feat(time): TimeSelect + wizard pickup/return times + opening hours settings | port (ported, Task 4 wave 01 `f44d1d1`) |
+| 78ca13e | fix(time): stop label.fld/.form-grid select rules from overriding TimeSelect | port (ported, Task 4 wave 01 `1a8e5a9`) |
+| 79da67c | feat(board): fractional time bars, bar states, timed blocks and time editing | port (ported, Task 4 wave 01 `f932643`) |
+| a30ccbc | feat(desk): advisory block/blackout conflicts with explicit override on manual bookings and moves | port (ported, Task 4 wave 01 `ff57ce3`) |
+| c90d574 | feat(time): human wall-time rendering across emails, confirmation, account, Stripe line | port (ported, Task 4 wave 01 `07f3aac`) |
+| 7220eea | feat(ui): month + year quick-jump dropdowns in DatePicker calendar header | port (ported, Task 4 wave 01 `c5e63c1`) |
 | 076b9c5 | feat(payments): deposit-or-full money model, amount-paid tracking, desk/extension payment types | port |
 | 2859497 | feat(payments): webhook credits amount paid, verifies against the recorded row, handles extension payments and charge.refunded | port |
 | 47d6b52 | feat(brand): env-driven site config replaces hardcoded fleetdesk.app in public layout, emails, checkout | port |
@@ -221,6 +221,8 @@ Test Files  42 passed (42)
 
 7. **Docs-only rule applied.** `skip` was given to every commit whose subject starts `docs:`/`docs(` (or which touches only `docs/` paths) *outside* the desk-mode lineage: `8c0cfc8`, `39f96f3`, `2a0a68e`, `87bbbc3`, `3f8136b`, `f2f2b8b`. Inside the desk-mode lineage, docs-prefixed commits (`87e21bc`, `b306a5a`, `19ff400`, `c0cf78b`, `d6ab31e`, `158c24a`, `7813bcc`) are `defer-task-8` instead, since the named lineage rule is the more specific instruction and Task 8 owns the whole desk-mode surface (code and docs together) pending Mo's decision.
 
+8. **Task 4 wave 01 migration numbering + the `8a26078` snapshot correction.** FD's two wave-01 migrations kept their exact FD filenames per the Global MIGRATION RULE: `drizzle/0015_smiling_thunderbolt.sql` (enum: adds `picked_up` to `booking_status`) and `drizzle/0016_high_gladiator.sql` (the danger migration, see Note 4). Journal: Tex's `idx 14` (`0014_majestic_sunspot`) is untouched; `idx 15`/`idx 16` were appended with FD's exact filenames and `when` values (`1785176040444`, `1785176187233` - earlier epoch ms than Tex's own idx-14 entry, since `when` is creation metadata only, not an apply-order key; apply order is strictly `idx`). Verified clean end-to-end via `DATABASE_URL=pglite://.migration-smoke npm run db:migrate`. Separately, `drizzle/meta/0016_snapshot.json` (FD's own file, copied verbatim by the cherry-pick) claimed the current schema included FD's `early_access_leads` table (marketing funnel, `a288900` = skip, never ported) and was missing Tex's own `admin_reset_tokens` table (`0014`, password reset, FD doesn't have this feature) - a real problem for the *next* `db:generate`, though irrelevant to the raw SQL migration smoke, which only reads `_journal.json` + the `.sql` files and never touches snapshot JSON. Hand-patched `0016_snapshot.json`'s `tables` map to swap `early_access_leads` for Tex's `admin_reset_tokens` (copied verbatim from `0014_snapshot.json`), and re-chained `0015_snapshot.json`'s `prevId` to Tex's real `0014` snapshot id. This patch was made during the `8a26078` port step but a process slip (edited the working tree, never re-staged) meant it missed that commit; it landed one commit later as `f5f7f64`. Net effect from `c5e63c1` (wave end) onward is correct either way. Full detail in `.superpowers/sdd/task-4-wave01-report.md`.
+
 ## Owner settings to confirm (carried forward for Task 6)
 
 Per the control plan's Task 6 amendment, flagging here so it is not lost: `minDriverAge` must stay at Tex's current production value, not silently reset to FleetDesk's default of 18. When Task 6 runs, confirm with the owner: young-driver age and fee, cancellation window, deposit percent, opening and closing times.
@@ -297,3 +299,15 @@ FD's Sand & Surf palette is a semantic-token system (`--sand`/`--teal`/`--coral`
 - **Tex brand tokens**: see token table above; verified in the actual compiled/served CSS via dev-server curl (`--teal: #15192f`, `--coral: #f15f2c`, `--sky: #2348c7`, `--sand: #f7f8fc` present in the served `layout.css` chunk).
 - **Account page reserve label (post-commit catch)**: the brief's reserve grep covered `book/page.tsx` + confirmation only, but old `(public)/account/page.tsx` also carried a `RESERVE_MODE` branch: `STATUS.pending` reads "Awaiting confirmation" in reserve mode instead of "Awaiting payment". The `45cdd1a` wholesale copy dropped it; a systematic sweep of every replaced file's pre-port version for `RESERVE_MODE|DEMO_MODE|tex-cars|Tex Cars` caught it (the only hit not already handled), and the follow-up commit restores it verbatim. The same sweep confirmed no other Tex-specific content was lost anywhere else.
 - **Bonus latent-bug fix**: Tex's old wizard linked its terms label to `/policies/rental-terms` (hyphen), but `(public)/policies/[type]/page.tsx` only accepts `rental_terms|cancellation|privacy` and 404s otherwise, so that link was already broken pre-port. The copied wizard links `/policies/rental_terms` (underscore), which matches the route allowlist; kept FD's corrected slug.
+
+## Task 4, wave 01: time foundation port
+
+Commits `2eea63b`..`7220eea` (10 hashes, see the ledger above for each hash's target commit), plus one correction commit `f5f7f64` (see Note 8). Source: `fleetdesk/main`. Mechanics: individual `git cherry-pick -n <hash>` per commit (not a single whole-file copy like Task 3), conflict-resolved per the playbook, one Tex commit per FD hash. Full detail (per-commit conflicts, test evidence, migration-smoke output, self-review) is in `.superpowers/sdd/task-4-wave01-report.md`; this section is the ledger-adjacent summary.
+
+**Buffer units**: `turnaroundBufferDays` (int, default 1) -> `turnaroundBufferHours` (int, default 24) at the schema/settings/engine layer, landed inside `8a26078`'s own diff (settings schema, `SettingsPatchSchema`, `checkAvailability`, `createBooking`, etc. all renamed together). The brief's specific pointer - a literal `turnaroundBufferDays: 1` in `scripts/seed.ts` - does not exist in Tex's `seed.ts` (it never set this field explicitly; relies on the schema default, which the migration converts automatically). The real Tex-only conversion site is `scripts/seed-demo-bookings.ts` (not touched by any FD wave-01 commit, hand-converted: `settings.turnaroundBufferDays` day-math -> `addHoursIso(endAt, settings.turnaroundBufferHours)`, plus `startDate/endDate/bufferEndDate` -> `startAt/endAt/bufferEndAt` via `atAruba`).
+
+**Other Tex-only structural fixes** (files no FD wave-01 commit touches, but which reference the renamed booking columns and would not compile/run without the rename): `src/test/reservation-mode.test.ts` (one direct `bookings` insert), `src/test/admin-confirm-booking.test.ts` (`makePendingBooking` helper + one direct `reservationConfirmedEmail` call - this Tex-only email function and its `notifyReservationConfirmed` caller in `src/lib/email/notifications.ts` were also hand-updated to the new `startAt/endAt` + `formatDateTime` shape inside `8a26078`, since FD has no equivalent function to carry the rename for us).
+
+**Brand-token conflicts resolved** (beyond the engine/schema auto-merges, which were clean throughout): `admin.css` `.form-grid select:focus` box-shadow (78ca13e) and the new `--pickup`/`--overdue` bar-state tokens + 7-entry planning legend (79da67c) - see the ledger's Task 4 commit list above for exact hex. `date-picker.css`'s new `.scds-dp__select` rules (7220eea) had FD's own `var(--x, #fd-hex)` fallback values rebranded to Tex's tokens, matching the `var(--x, #fallback)` precedent already established in Task 3's token table.
+
+**0016 danger status**: confirmed still exactly as Note 4 describes - fine on fresh local PGlite (migration-smoke green after every wave-01 commit that touches migrations), prod rollout is Task 9's runbook, not executed here.
