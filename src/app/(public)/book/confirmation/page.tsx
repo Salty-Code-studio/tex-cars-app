@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatDateTime } from "@/lib/time/format";
 
 const RESERVE_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "reserve";
 
-interface Booking { id: string; status: string; startDate: string; endDate: string }
+interface Booking { id: string; status: string; startAt: string; endAt: string }
 
 export default function ConfirmationPage() {
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -40,13 +41,13 @@ export default function ConfirmationPage() {
           RESERVE_MODE ? (
             <p>Reservation confirmed. See you at pickup!</p>
           ) : (
-            <p>Payment received and your booking for {booking.startDate} to {booking.endDate} is confirmed.
+            <p>Payment received and your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is confirmed.
               We&apos;ll arrange delivery on WhatsApp. See you soon!</p>
           )
         ) : RESERVE_MODE ? (
           <p>Reservation received! Tex Cars will confirm your reservation shortly. You pay the deposit at pickup.</p>
         ) : (
-          <p>Your booking for {booking.startDate} to {booking.endDate} is held. If you just paid, the
+          <p>Your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is held. If you just paid, the
             confirmation lands in a moment. Our team will also reach out on WhatsApp.</p>
         )}
         <p style={{ marginTop: "2rem" }}><a href="https://tex-cars.com">← Back to tex-cars.com</a></p>
