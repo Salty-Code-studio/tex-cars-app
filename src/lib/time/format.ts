@@ -2,8 +2,8 @@
  * Aruba wall-time helpers. Aruba is UTC-4 with NO daylight saving, so a fixed
  * "-04:00" offset is always correct and lets us build timestamps without a TZ
  * database. All user-facing rendering of booking times goes through this file.
- * (When FleetDesk goes multi-tenant, this is the one module that grows a
- * per-operator timezone.)
+ * (If this ever needs a second pickup location or timezone, this is the one
+ * module that grows it.)
  */
 export const ARUBA_TZ = "America/Aruba";
 export const ARUBA_OFFSET = "-04:00";
