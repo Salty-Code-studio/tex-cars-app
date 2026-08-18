@@ -37,11 +37,11 @@ Test Files  42 passed (42)
 | Hash | Subject | Decision |
 |---|---|---|
 | 6f5e08c | FleetDesk: booking + operations platform for small rental operators | skip (FD root snapshot of Tex's own base at fork time; nothing to port, controller-adjudicated) |
-| 2344d3e | Admin redesign: saltycodestudio "Sand & Surf" design language | port |
-| 369502f | feat(ui): Sand & Surf admin kit + branded DatePicker/Select | port |
+| 2344d3e | Admin redesign: saltycodestudio "Sand & Surf" design language | port (ported, Task 3 `45cdd1a`) |
+| 369502f | feat(ui): Sand & Surf admin kit + branded DatePicker/Select | port (ported, Task 3 `45cdd1a`) |
 | a288900 | feat(marketing): public funnel (landing, pricing, early-access) + lead capture | skip |
-| 72f563d | feat(book): Sand & Surf booking flow + step-by-step animated wizard | port |
-| a7ef368 | feat(admin): modernize admin (modals, toasts, command palette, custom controls) | port |
+| 72f563d | feat(book): Sand & Surf booking flow + step-by-step animated wizard | port (ported, Task 3 `45cdd1a`) |
+| a7ef368 | feat(admin): modernize admin (modals, toasts, command palette, custom controls) | port (ported, Task 3 `45cdd1a`) |
 | 8c0cfc8 | docs: redesign + funnel/wizard/controls specs | skip |
 | 32b6ea4 | fix(security): close OTP-leak account takeover + CSRF-guard guest booking/checkout | port (ported, Task 2 `24cbded`) |
 | 1e0c855 | fix(security): cap per-victim rate limits independent of spoofable fingerprint | port (ported, Task 2 `9264192`) |
@@ -231,3 +231,69 @@ Tex-only features that FleetDesk's `main` lacks and could be backported into the
 
 - **Admin forgot-password + team panel** - `src/app/admin/(auth)/forgot-password/page.tsx`, `src/app/admin/(auth)/reset-password/page.tsx`, `src/lib/auth/admin-reset.ts`, `src/app/api/admin/auth/reset/request/route.ts`, `src/app/admin/(shell)/team/page.tsx`. Verified absent from `fleetdesk/main` (no `forgot`/`reset-password`/`team` paths in its tree); FleetDesk only has the staff-code login system, no self-serve password reset or team page.
 - **`sendOwnerTelegram` owner ping** - `src/lib/notify.ts`. A simple single-owner Telegram notify on new/confirmed bookings. Verified absent from `fleetdesk/main` (`git grep sendOwnerTelegram fleetdesk/main` returns nothing); FleetDesk instead built the much larger multi-manager Telegram approval system on `feat/desk-mode-telegram-approval` (see `defer-task-8` rows), which solves a different problem (approval workflow, not a simple ping).
+
+## Task 3: Sand & Surf admin kit + booking wizard port
+
+Commits: `45cdd1a` (main port) + `4436d6d` (follow-up fix restoring the reserve-mode pending label on the account page; see Preservation evidence, last bullet). Source revision: `fleetdesk` remote at `713c11c` (the composed, post-redesign state of commits `369502f`, `2344d3e`, `72f563d`, `a7ef368`; whole-file copy per the task brief, not a patch apply).
+
+### Copy vs hand-merge, per file group
+
+**Pure whole-file copy, no Tex-specific content to preserve** (31 files: hex + text remapped mechanically, see below):
+`src/components/ui/**` (DatePicker, Select, CSS, index), `src/app/admin/_ui/**` (10 files: AdminChrome, CommandPalette, ConfirmDialog, Drawer, EmptyState, Modal, Skeleton, Toast, useOverlay, index), the 7 new per-page admin CSS files (`audit.css`, `catalog.css`, `dashboard.css`, `fleet.css`, `policies.css`, `reports.css`, `settings.css`), 6 shell `page.tsx` files (`audit`, `catalog`, `fleet`, `policies`, `reports`, `settings`), the dashboard `(shell)/page.tsx` (planning board + inline legend-swatch hex, remapped), `(auth)/mfa/page.tsx`, `(public)/account/login/page.tsx`.
+
+**Hand-merge, structure from FD + Tex-specific content re-applied** (10 files):
+`(shell)/side-nav.tsx` (new; Team link added), `(shell)/layout.tsx` (logo wordmark + metadata), `admin.css` (full `:root` brand-token restoration + 2 added rule blocks), `(auth)/layout.tsx` (metadata only, mechanical otherwise), `(auth)/login/page.tsx` (demo panel + forgot-password link preserved), `(public)/layout.tsx` (header wordmark + href), `public.css` (full `.pub{}` brand-token restoration), `(public)/book/page.tsx` (RESERVE_MODE re-applied onto the 7-step wizard), `(public)/book/confirmation/page.tsx` (RESERVE_MODE + back-link re-applied onto the new card layout), `(public)/account/page.tsx` (RESERVE_MODE pending-label re-applied onto the restyled page; initially shipped in `45cdd1a` as a pure copy, caught in post-commit self-review and fixed in the follow-up commit).
+
+**Not copied / untouched, verified via `git status`:** `(auth)/forgot-password/page.tsx`, `(auth)/reset-password/page.tsx`, `(shell)/team/page.tsx`, `src/env.ts`, `scripts/seed.ts`, `wrangler.jsonc`, `worker/index.ts`, `Dockerfile`, `next.config.ts`.
+
+### Re-brand replacements (`grep -rn "FleetDesk|fleetdesk"` on every copied file, full list)
+
+| File | Original (FD) | Replaced with |
+|---|---|---|
+| `(shell)/layout.tsx` | `title: "FleetDesk Admin"` | `title: "Tex Cars Admin"` |
+| `(shell)/layout.tsx` | `<span className="logo-word">FleetDesk</span>` | `<span className="logo-word">TEX<b>CARS</b></span>` (hand-merge, not mechanical) |
+| `admin.css` | header comment "FleetDesk admin: ..." | "Tex Cars admin: ..." |
+| `admin.css` | comment "Clean \"~< FleetDesk\" brand lockup..." | "Clean \"~< Tex Cars\" brand lockup..." |
+| `(shell)/settings/page.tsx` | placeholder `"owner@fleetdesk.app, ops@fleetdesk.app"` | `"owner@tex-cars.com, ops@tex-cars.com"` |
+| `(auth)/mfa/page.tsx` (x3) | `<p className="auth-brand">FleetDesk</p>` | `<p className="auth-brand">Tex Cars</p>` |
+| `_ui/index.ts` | comment "FleetDesk admin modern-UI kit..." | "Tex Cars admin modern-UI kit..." |
+| `components/ui/date-picker.css` | comment "FleetDesk DatePicker - ..." | "Tex Cars DatePicker - ..." |
+| `components/ui/select.css` | comment "FleetDesk Select - ..." | "Tex Cars Select - ..." |
+| `(auth)/layout.tsx` | `title: "FleetDesk Admin"` | `title: "Tex Cars Admin"` |
+| `(auth)/login/page.tsx` | `<p className="auth-brand">FleetDesk</p>` | `<p className="auth-brand">Tex Cars</p>` (hand-merge, demo panel + forgot-password link re-applied around it) |
+| `(public)/layout.tsx` | `title: "Book a car \| FleetDesk"` | `title: "Book a car \| Tex Cars & Leasing"` |
+| `(public)/layout.tsx` | `href="https://fleetdesk.app" aria-label="FleetDesk home"` + `<span className="pub-brand-word">FleetDesk</span>` | `href="https://tex-cars.com" aria-label="Tex Cars home"` + `<span className="pub-brand-word">TEX<b>CARS</b></span>` (hand-merge) |
+| `public.css` | header comment "FleetDesk public booking flow..." | "Tex Cars public booking flow..." |
+| `book/confirmation/page.tsx` | `<a href="https://fleetdesk.app">Back to fleetdesk.app</a>` | `<a href="https://tex-cars.com">&larr; Back to tex-cars.com</a>` (Tex's pre-existing exact copy restored, per the conflict playbook's "Back to ..." link rule, not FD's) |
+
+Post-port full-tree `grep -rn "FleetDesk\|fleetdesk" src/` returns nothing.
+
+### Brand token restoration (admin.css `:root` + public.css `.pub{}`)
+
+FD's Sand & Surf palette is a semantic-token system (`--sand`/`--teal`/`--coral`/`--sky`/etc.), not raw color literals in the body rules (confirmed: zero `var(--navy)`/`var(--blue)` usages in FD's body CSS at 713c11c; only the `:root`'s own legacy-repoint block used them). This meant restoring Tex's brand was a values-only swap inside `:root`/`.pub{}`; the body rules needed no changes since they already reference tokens by name. Mapping (FD hex -> Tex hex), applied mechanically via a one-off Python script across every copied CSS/TSX file (hex literals, `var(--x, #fallback)` defaults in date-picker.css/select.css, and `rgba(r,g,b,a)` decimal shadow tints alike):
+
+- `--teal` (primary ink / buttons / sidebar): `#0E3A40` -> `#15192F` (Tex navy, exact)
+- `--teal-700` / `--teal-600` (hover shades): `#0A2C31`/`#14474E` -> `#0C0E1C`/`#1B2036` (derived darker navy; no prior Tex value existed for a navy hover state, since Tex's old scheme hovered a *different* color, cobalt, in this slot)
+- `--coral` / `--coral-600` (THE accent): `#FF6F59`/`#F2563F` -> `#F15F2C` (Tex coral, exact per brief) / `#D94E1F` (Tex's pre-existing darker-coral hover value, reused)
+- `--coral-lift` (public CTA hover, lighter not darker): `#FF7D68` -> `#F47850` (derived lighter Tex coral)
+- `--sky` (secondary accent: tags/charts/info): `#4FA8C9` -> `#2348C7` (Tex cobalt). Cobalt was Tex's *original* primary/button color; in the new system it's demoted to the secondary-accent slot, matching where Tex already used it for charts/info tags before this port.
+- `--sand`/`--sand-2` (canvas / hover tint): `#F2EBDD`/`#EAE0CD` -> `#F7F8FC`/`#EFF3FC` ("Tex canvas": Tex's pre-existing cool `--surface` value and its "today" tint, not FD's warm cream)
+- `--panel` (card surface): `#FCFAF4` -> `#FFFFFF` (Tex's existing plain-white cards)
+- `--ink`/`--ink-soft`/`--ink-mute`: -> `#15192F`/`#4A5170`/`#828AA6` (Tex's existing values; `--ink-mute` matches the fallback Tex's pre-port CSS already used inline)
+- `--line`/`--line-soft`/`--fill`: -> `#E6E9F2`/`#EEF0F7`/`#F7F8FC` (Tex's existing border color; `--fill` reuses the canvas value since Tex never distinguished the two)
+- `--ok`/`--ok-bg`, `--danger`/`--danger-bg`, `--amber`/`--amber-bg`: -> Tex's existing status colors and their existing tag-background tints (`#0F7B4D`/`#E6F6EE`, `#C81E1E`/`#FDEAEA`, `#F6A609`/`#FDF0D9`)
+- "Blocked" planning-board legend swatch: `#C8BAA0` -> `#9AA2C0` (Tex's pre-existing blocked-status color)
+- Two derived FD colors with no token behind them (`.tag.def` and `.ui-toast--info` label, both `#2E7A96`) were changed to `var(--sky)` directly instead of a hand-picked hex, matching Tex's original `.tag.def { color: var(--blue) }` convention.
+
+**Deliberately left unchanged** (not brand tokens, purely decorative): the maintenance/carwash/cleaning/out-of-service block-stripe pattern colors, and muted sidebar meta-text grays (`logo-tag`, `foot-acct`, `foot-by`). These are incidental status/decoration hues independent of the cobalt/coral/navy identity, and Tex's own pre-port CSS made equally arbitrary, independent choices for the same decorative slots.
+
+**Two rule blocks added to `admin.css` that FD's kit has no equivalent for**, since FleetDesk lacks self-serve password reset (`.auth-alt`, styled to match `.auth-card`'s new type scale) and lacks shareable reset links (`.link-row`, styled to match the new `.field`/`.form-grid` input treatment). Both are needed by the Tex-only forgot-password/reset-password/team pages, which were not touched but depend on admin.css.
+
+### Preservation evidence
+
+- **Demo panel + "Enter the live demo" + forgot-password**: `(auth)/login/page.tsx` keeps the `DEMO_MODE` gate, `enterDemo()` handler, and `.demo-panel` block verbatim (including Tex's "sample rentals" wording, not FD's "sample data"), plus `<p className="auth-alt"><a href="/admin/forgot-password">Forgot password?</a></p>` before the error message. Confirmed live via dev-server curl of `/admin/login`: rendered HTML contains `class="demo-panel"`, `Enter the live demo`, `Forgot password?`, zero `fleetdesk` occurrences.
+- **Team nav + `/admin/(shell)/team` page**: `side-nav.tsx`'s `LINKS` array has `{ href: "/admin/team", label: "Team" }` inserted between Settings and Policies (Tex's original nav order). `git status` on `(shell)/team/page.tsx` is clean (file untouched); its class usage (`.panel`, `table.grid`, `.tag`, `.row-actions`, `.link-row`, `.btn--quiet`, `.muted`, `.sub`) was checked against the new admin.css; all are defined, including the two new blocks above.
+- **Reserve-mode copy**: `RESERVE_MODE` (env `NEXT_PUBLIC_PAYMENT_MODE === "reserve"`) re-applied at 5 sites in `book/page.tsx` (early-return in `submit()` before the Stripe checkout call, the payment-options block gated `!RESERVE_MODE`, the explanatory comment about the unused `paymentOption` default, the "Reserve now" vs "Reserve & pay" button label, and the final-step note text) and 2 sites in `confirmation/page.tsx` (the confirmed and pending/held branches). Tex's exact copy strings were preserved verbatim, not FD's rewording.
+- **Tex brand tokens**: see token table above; verified in the actual compiled/served CSS via dev-server curl (`--teal: #15192f`, `--coral: #f15f2c`, `--sky: #2348c7`, `--sand: #f7f8fc` present in the served `layout.css` chunk).
+- **Account page reserve label (post-commit catch)**: the brief's reserve grep covered `book/page.tsx` + confirmation only, but old `(public)/account/page.tsx` also carried a `RESERVE_MODE` branch: `STATUS.pending` reads "Awaiting confirmation" in reserve mode instead of "Awaiting payment". The `45cdd1a` wholesale copy dropped it; a systematic sweep of every replaced file's pre-port version for `RESERVE_MODE|DEMO_MODE|tex-cars|Tex Cars` caught it (the only hit not already handled), and the follow-up commit restores it verbatim. The same sweep confirmed no other Tex-specific content was lost anywhere else.
+- **Bonus latent-bug fix**: Tex's old wizard linked its terms label to `/policies/rental-terms` (hyphen), but `(public)/policies/[type]/page.tsx` only accepts `rental_terms|cancellation|privacy` and 404s otherwise, so that link was already broken pre-port. The copied wizard links `/policies/rental_terms` (underscore), which matches the route allowlist; kept FD's corrected slug.
