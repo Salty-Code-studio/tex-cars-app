@@ -48,10 +48,10 @@ export default function AdminLoginPage() {
 
   return (
     <form className="auth-card" onSubmit={onSubmit}>
-      <h1>
-        TEX<b style={{ color: "var(--orange)" }}>CARS</b> Admin<span className="brand-dot" />
-      </h1>
+      <p className="auth-brand">Tex Cars</p>
+      <h1>Sign in</h1>
       <p className="sub">Sign in to the operations dashboard.</p>
+
       {DEMO_MODE && (
         <div className="demo-panel">
           <button type="button" className="btn btn-demo" onClick={enterDemo} disabled={busy}>
@@ -61,6 +61,7 @@ export default function AdminLoginPage() {
           <div className="demo-divider"><span>or sign in</span></div>
         </div>
       )}
+
       <div className="field">
         <label htmlFor="email">Email</label>
         <input id="email" type="email" autoComplete="username" required
