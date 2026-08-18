@@ -104,7 +104,7 @@ describe("incremental migration upgrade on a populated DB", () => {
 /**
  * Journal guard: drizzle's migrator gates each migration on
  * `lastDbMigration.created_at < folderMillis` (see the 22P02 silent-skip fix,
- * PORT-LOG Note 9(b)) — the journal `when` value IS the apply high-water
+ * PORT-LOG Note 9(b)): the journal `when` value IS the apply high-water
  * mark, not inert creation metadata. Any future wave that appends an FD
  * migration's raw `when` without remapping it (formula: `1786970199527 +
  * (fd_when - 1785176040444)`) would reintroduce that silent skip on a

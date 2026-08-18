@@ -63,19 +63,19 @@ Test Files  42 passed (42)
 | a30ccbc | feat(desk): advisory block/blackout conflicts with explicit override on manual bookings and moves | port (ported, Task 4 wave 01 `ff57ce3`) |
 | c90d574 | feat(time): human wall-time rendering across emails, confirmation, account, Stripe line | port (ported, Task 4 wave 01 `07f3aac`) |
 | 7220eea | feat(ui): month + year quick-jump dropdowns in DatePicker calendar header | port (ported, Task 4 wave 01 `c5e63c1`) |
-| 076b9c5 | feat(payments): deposit-or-full money model, amount-paid tracking, desk/extension payment types | port |
-| 2859497 | feat(payments): webhook credits amount paid, verifies against the recorded row, handles extension payments and charge.refunded | port |
-| 47d6b52 | feat(brand): env-driven site config replaces hardcoded fleetdesk.app in public layout, emails, checkout | port |
-| 2a25fba | feat(payments): pure amounts module, cancellation window policy, admin refunds | port |
-| 7cb4a94 | feat(payments): customer cancellation auto-refunds outside the 48h window | port |
-| ef85d53 | feat(admin): cancel with explicit refund or no-refund choice | port |
-| 55c394d | Fix admin cancel dropping policySaysFree from cancellation email | port |
-| 7d9c0b1 | feat(admin): BookingDrawer with payments, balance due, refund and cancel actions | port |
-| 1cbbf02 | fix(admin): scope Escape-close to the topmost overlay only | port |
-| 7d6d5a3 | feat(admin): rental extensions with availability check, delta pricing, link or desk payment | port |
-| 80ff41f | feat(admin): extend rental modal with live delta preview and payment choice | port |
-| ff407fa | feat(book): honest pay-now step with policy box, persistence and resume payment | port |
-| 5662406 | feat(book): patient confirmation polling with manual check and WhatsApp fallback | port |
+| 076b9c5 | feat(payments): deposit-or-full money model, amount-paid tracking, desk/extension payment types | port (ported, Task 4 wave 02 `3fa0231`; migration 0017, see Note 10) |
+| 2859497 | feat(payments): webhook credits amount paid, verifies against the recorded row, handles extension payments and charge.refunded | port (ported, Task 4 wave 02 `2dc8491`) |
+| 47d6b52 | feat(brand): env-driven site config replaces hardcoded fleetdesk.app in public layout, emails, checkout | port (ported, Task 4 wave 02 `b9fc0f6`; env mapping, see Note 10) |
+| 2a25fba | feat(payments): pure amounts module, cancellation window policy, admin refunds | port (ported, Task 4 wave 02 `6ea1df6`) |
+| 7cb4a94 | feat(payments): customer cancellation auto-refunds outside the 48h window | port (ported, Task 4 wave 02 `31f458f`) |
+| ef85d53 | feat(admin): cancel with explicit refund or no-refund choice | port (ported, Task 4 wave 02 `8a7e3d4`) |
+| 55c394d | Fix admin cancel dropping policySaysFree from cancellation email | port (ported, Task 4 wave 02 `cb99433`) |
+| 7d9c0b1 | feat(admin): BookingDrawer with payments, balance due, refund and cancel actions | port (ported, Task 4 wave 02 `76da12b`; Tex confirm-reservation action restored, see Note 10) |
+| 1cbbf02 | fix(admin): scope Escape-close to the topmost overlay only | port (ported, Task 4 wave 02 `080c520`) |
+| 7d6d5a3 | feat(admin): rental extensions with availability check, delta pricing, link or desk payment | port (ported, Task 4 wave 02 `89bbb10`) |
+| 80ff41f | feat(admin): extend rental modal with live delta preview and payment choice | port (ported, Task 4 wave 02 `cd3b1ec`) |
+| ff407fa | feat(book): honest pay-now step with policy box, persistence and resume payment | port (ported, Task 4 wave 02 `fee8f3d`) |
+| 5662406 | feat(book): patient confirmation polling with manual check and WhatsApp fallback | port (ported, Task 4 wave 02 `864ff53`) |
 | c6323f1 | feat(compliance): vehicle expiry dates, alert stages, complianceAlertDays setting | port |
 | 0c93851 | feat(compliance): expiry dates at the vehicle boundary + stage reset on date change | port |
 | 5aa9663 | feat(compliance): adminDocumentExpiringEmail template | port |
@@ -229,6 +229,14 @@ Test Files  42 passed (42)
    (c) **0015 snapshot tables map.** `f5f7f64` only half-reconciled `0015_snapshot.json`: `prevId` was re-chained but the `tables` map still carried FD's `early_access_leads` and lacked Tex's `admin_reset_tokens`. Completed in `78615e8` with the same patch 0016 received (block byte-identical to `0014_snapshot.json`, 21 tables).
    Gates after the loop: incremental-upgrade test green, fresh migration smoke green, `npx tsc --noEmit` clean, full suite 50 files / 255 tests green.
 
+10. **Wave 02: migration 0017 hardening check (none needed) and the site-config env mapping.**
+    (a) **0017 hardening.** Per the port brief's instruction, checked FD's history for a later 55P04-safe rewrite of `drizzle/0017_wave02_money_model.sql` before porting it: `git -C <FD> log --oneline --all -- drizzle/0017*` returns only `076b9c5` itself (the migration was never touched again), and `git -C <FD> log --grep 55P04 --oneline --all` returns only `69b3889`, the fix already hoisted into wave 01. No hardening commit exists to hoist. Separately verified 0017 is safe in isolation, not just absent-of-a-fix: its three `ALTER TYPE "payment_type" ADD VALUE ...` statements are the LAST three statements in the file, and no statement after them (in 0017 or in any other wave-02 migration, since 0017 is the only migration this wave adds) references `rental_deposit`/`rental_full`/`extension` in a DDL or predicate context, which is what actually triggers 55P04 (an ADD VALUE used, not just present, within the same transaction it was added in - the 0015/0016 bug was 0016's exclusion-constraint predicate using 0015's new value, not the ADD VALUE itself). Confirmed empirically, not just by inspection: `src/test/migration-incremental-upgrade.test.ts`'s existing phase-2 `migrate()` call applies the real `DRIZZLE_DIR`, which now includes 0017, so the same populated-DB regression guard that would have caught an unsafe 0017 already exercises it every run - green throughout this wave. Forward-looking note for whichever wave adds the next payment_type-referencing migration (desk-mode's `payment_type` uses are all in `defer-task-8` scope, not yet ported): if a later migration references `rental_deposit`/`rental_full`/`extension` in a CHECK constraint, partial index, or exclusion predicate, re-run this same check before assuming ADD VALUE is safe.
+    (b) **Site-config env mapping.** `47d6b52` introduces exactly three env vars, all `NEXT_PUBLIC_*` (`NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`), none server-only - so `src/env.ts`'s Zod schema and `CONTAINER_ENV_KEYS` in `worker/index.ts` are untouched this wave (verified: `git diff 52ea88a..HEAD --stat` against both files is empty). `src/lib/site-config.ts`'s fallback defaults were changed from FD's own (`"FleetDesk"` / `"https://fleetdesk.app"`) to Tex's (`"Tex Cars"` / `"https://tex-cars.com"`), so every siteConfig consumer renders correctly with zero env vars set. `.env.local` (gitignored) also got the three vars with real values (`NEXT_PUBLIC_WHATSAPP_NUMBER=2975945454`, sourced from `site/data/config.js`'s `waNumber`) so local dev exercises the "real" env-var path, not just the fallback. Because these are `NEXT_PUBLIC_*` vars, Next.js inlines them into the CLIENT bundle at `next build` time (see the `NEXT_PUBLIC_PAYMENT_MODE` precedent and its comment block in `Dockerfile` lines 50-56) - a runtime container env var alone would only fix server-rendered output (SSR, email templates), not the shipped client JS. Recorded as a Task 9 runbook item below rather than touched here, per the port brief's explicit carve-out for `NEXT_PUBLIC_*` vars.
+
+## Task 9 runbook items (carried forward, do not execute now)
+
+- **NEXT_PUBLIC_SITE_NAME / NEXT_PUBLIC_SITE_URL / NEXT_PUBLIC_WHATSAPP_NUMBER** (from wave 02's `47d6b52`, Note 10(b)): add an `ENV NEXT_PUBLIC_SITE_NAME=... NEXT_PUBLIC_SITE_URL=... NEXT_PUBLIC_WHATSAPP_NUMBER=...` line to the Dockerfile's builder stage, mirroring the existing `NEXT_PUBLIC_PAYMENT_MODE` block (Dockerfile lines 57-68), and add the two non-secret values to `wrangler.jsonc`'s `vars` block alongside `PAYMENT_MODE`/`NEXT_PUBLIC_PAYMENT_MODE` for documentation parity (the container-runtime copy only helps server-rendered output; the client bundle needs the Docker build-time value). Real values: `NEXT_PUBLIC_SITE_NAME=Tex Cars`, `NEXT_PUBLIC_SITE_URL=https://tex-cars.com`, `NEXT_PUBLIC_WHATSAPP_NUMBER=2975945454` (E.164 digits, no `+`; from `site/data/config.js`'s `waNumber`).
+
 ## Owner settings to confirm (carried forward for Task 6)
 
 Per the control plan's Task 6 amendment, flagging here so it is not lost: `minDriverAge` must stay at Tex's current production value, not silently reset to FleetDesk's default of 18. When Task 6 runs, confirm with the owner: young-driver age and fee, cancellation window, deposit percent, opening and closing times.
@@ -317,3 +325,72 @@ Commits `2eea63b`..`7220eea` (10 hashes, see the ledger above for each hash's ta
 **Brand-token conflicts resolved** (beyond the engine/schema auto-merges, which were clean throughout): `admin.css` `.form-grid select:focus` box-shadow (78ca13e) and the new `--pickup`/`--overdue` bar-state tokens + 7-entry planning legend (79da67c) - see the ledger's Task 4 commit list above for exact hex. `date-picker.css`'s new `.scds-dp__select` rules (7220eea) had FD's own `var(--x, #fd-hex)` fallback values rebranded to Tex's tokens, matching the `var(--x, #fallback)` precedent already established in Task 3's token table.
 
 **0016 danger status**: confirmed still exactly as Note 4 describes - fine on fresh local PGlite (migration-smoke green after every wave-01 commit that touches migrations), prod rollout is Task 9's runbook, not executed here.
+
+## Task 4, wave 02: payments redesign, extensions, refunds, cancellation policy, site-config branding
+
+Commits `076b9c5`..`5662406` (13 hashes, see the ledger above for each hash's target commit), plus the journal-guard test commit `2ad3a39`. Source: `fleetdesk/main`. Mechanics: individual `git cherry-pick -n <hash>` per commit, conflict-resolved per the playbook, one Tex commit per FD hash. Start HEAD: `47c6b52` (wave-01 end). End HEAD: `2ad3a39`.
+
+### Commit list (start to end)
+
+| # | Hash | Subject |
+|---|---|---|
+| 1 | `3fa0231` | feat(payments): deposit-or-full money model, amount-paid tracking, desk/extension payment types (port 076b9c5) |
+| 2 | `2dc8491` | feat(payments): webhook credits amount paid, verifies against the recorded row, handles extension payments and charge.refunded (port 2859497) |
+| 3 | `b9fc0f6` | feat(brand): env-driven site config replaces hardcoded fleetdesk.app in public layout, emails, checkout (port 47d6b52) |
+| 4 | `6ea1df6` | feat(payments): pure amounts module, cancellation window policy, admin refunds (port 2a25fba) |
+| 5 | `31f458f` | feat(payments): customer cancellation auto-refunds outside the 48h window (port 7cb4a94) |
+| 6 | `8a7e3d4` | feat(admin): cancel with explicit refund or no-refund choice (port ef85d53) |
+| 7 | `cb99433` | Fix admin cancel dropping policySaysFree from cancellation email (port 55c394d) |
+| 8 | `76da12b` | feat(admin): BookingDrawer with payments, balance due, refund and cancel actions (port 7d9c0b1) |
+| 9 | `080c520` | fix(admin): scope Escape-close to the topmost overlay only (port 1cbbf02) |
+| 10 | `89bbb10` | feat(admin): rental extensions with availability check, delta pricing, link or desk payment (port 7d6d5a3) |
+| 11 | `cd3b1ec` | feat(admin): extend rental modal with live delta preview and payment choice (port 80ff41f) |
+| 12 | `fee8f3d` | feat(book): honest pay-now step with policy box, persistence and resume payment (port ff407fa) |
+| 13 | `864ff53` | feat(book): patient confirmation polling with manual check and WhatsApp fallback (port 5662406) |
+| 14 | `2ad3a39` | test(migrations): journal when values strictly increasing (wave-02 review item, not an FD hash) |
+
+Full per-commit conflict/resolution detail, the 0017 hardening decision, the env mapping, reserve-mode preservation evidence, and self-review are in `.superpowers/sdd/task-4-wave02-report.md`; this section is the ledger-adjacent summary.
+
+### Migration 0017
+
+Kept FD's exact filename `drizzle/0017_wave02_money_model.sql` per the MIGRATION RULE. Journal idx 17 appended with the remapped `when`: `1786982009627` (`= 1786970199527 + (1785187850544 - 1785176040444)`, FD's own idx-17 `when`), strictly greater than idx 16's `1786970346316`. `0017_snapshot.json` had the same FD-only/Tex-only table divergence Notes 8/9 found in 0015/0016 (`early_access_leads` present, `admin_reset_tokens` missing) - patched the same way (swap, block copied verbatim from `0014_snapshot.json`, `prevId` chain already correct since FD's own `id` fields were never touched). No hardening commit exists for 0017 in FD's history and none was needed; see Note 10(a) for the full safety analysis and the forward-looking flag for later waves.
+
+### Reserve-mode preservation
+
+Three real gaps found and fixed this wave, all in surfaces this wave's commits rewrote wholesale (no pre-existing Tex branch for git to conflict against, so nothing flagged them automatically):
+
+1. **BookingDrawer dropped the admin "Confirm reservation" action** (`7d9c0b1` deletes the old BoardPopover's BookingPanel, which is where Tex's own `9bb61fa` - predating this port - had added it). Restored as `doConfirm()` in the new Drawer, same route, gated on `status === "pending"`.
+2. **`createExtensionCheckout` had no reserve-mode guard** (brand new FD function, FD has no reserve mode to have designed one for). Added the same `env.PAYMENT_MODE === "reserve"` conflict guard `createBookingCheckout` already has (`7d6d5a3`), and hid the "Send payment link" button in the extend modal when `RESERVE_MODE` (`80ff41f`), leaving "Collected at desk" as the only, primary-styled option.
+3. **`book/page.tsx`'s new capabilities merged in ungated** (`ff407fa`): the `RESERVE_MODE` early-return skipped the new `clearWizardStorage()` call every other exit path uses; the new sidebar "You pay now: $X" mirror line rendered even in reserve mode, where it is false (nothing is paid online). Both gated to match the rest of the reserve-mode copy.
+
+All 5 pre-wave `RESERVE_MODE` sites (grepped at wave start, per the brief) remain: the module const, the wizard's early-return before any Stripe call, the pay-options gate (now wrapping the full pay-card/policy-box/trust-row block), the submit-button label priority (`RESERVE_MODE` > amounts-driven > fallback), and the final step note. The confirmation page's 4-branch tree (confirmed/pending × reserve/pay) survived `5662406`'s rewrite with both reserve branches' exact copy kept self-contained (not layered with the new webhook-polling UI, since reserve-mode "pending" has no webhook to poll for). `checkout.ts`'s `createBookingCheckout` 409 guard was never touched by any wave-02 commit and remains exactly as wave 01 left it. `src/lib/payments/holds.ts`'s `expireStaleHolds` reserve no-op was untouched by every wave-02 commit (verified: zero diff `52ea88a..HEAD` on that file).
+
+### Test evidence
+
+Baseline before wave-02 work: 50 files / 255 tests, green (confirmed at dispatch start, matching wave-01's end state).
+
+Targeted runs per commit are detailed in `.superpowers/sdd/task-4-wave02-report.md` (every commit got its own targeted run, all green). Explicit full-suite checkpoints (not run after literally every commit, per the brief's "targeted per commit, full suite at wave end" protocol, but run more often than the minimum as insurance after the larger commits): 260 (after commit 1) -> 264 (commit 3) -> 278 (commit 6) -> 281 (commits 8, 9) -> 289 (commit 10) -> 290 (commit 11) -> 291 (commits 12, 13) -> **292 tests / 57 files at wave end** (commit 14, `npm test -- --no-file-parallelism`) - all green, monotonically growing as new test files landed.
+
+`npx tsc --noEmit`: clean at every commit boundary, including the final one.
+
+`npm run lint`: exits 0. Same single pre-existing warning wave 01 already documented as pre-dating both waves (`react-hooks/exhaustive-deps` on the planning board's mount-only `useEffect`) - unrelated to this wave's diffs.
+
+Migration smoke (`DATABASE_URL=pglite://.migration-smoke npm run db:migrate && rm -rf .migration-smoke`): clean, both mid-wave (after `076b9c5` landed 0017) and at wave end. The incremental-upgrade regression test (`src/test/migration-incremental-upgrade.test.ts`, phase 1 through 0014 + phase 2 through the real `DRIZZLE_DIR`, now including 0017) stayed green throughout - the strongest available evidence 0017 is safe on a populated DB, not just a fresh one. The new journal-guard test (same file, static `when`-monotonicity check) is green.
+
+### Self-review findings
+
+Ran a full repo-wide sweep after the last wave-02 commit, before considering the wave done:
+
+1. **`grep -rin fleetdesk src/`**: one hit, `src/test/migration-incremental-upgrade.test.ts`'s `os.tmpdir()` prefix string `"fleetdesk-mig-"` - internal test scaffolding (a throwaway temp-dir name), never rendered anywhere in the app, and pre-dates this wave (added by the hoisted `69b3889` in wave 01). Not user-visible; left as is.
+2. **Protected files**: `git diff 52ea88a..HEAD --stat` against `scripts/seed.ts`, `src/env.ts`, `wrangler.jsonc`, `worker/index.ts`, `Dockerfile`, `next.config.ts`, `vercel.json`, `.mcp.json`, the demo door, the password-reset surface, and `src/lib/notify.ts` - all empty. `scripts/seed-demo-bookings.ts` (protected but hand-edit-eligible, same as wave 01's buffer-hours conversion) WAS edited: its `paymentOption` literals and `quote()` call needed the same schema-driven conversion wave 01 made for buffer units, documented under commit 1 in the full report.
+3. **`sendOwnerTelegram`/`sendOwnerWhatsApp`**: confirmed present and called at every notify site that had them before this wave (`notifyNewBooking`, `notifyReservationConfirmed`, `notifyBookingConfirmed`). The two brand-new notify functions this wave adds (`notifyBookingCancelled`, `notifyBookingExtended`) never had an owner-ping call to preserve - verified via `git show 47c6b52:src/lib/email/notifications.ts`, neither function existed before this wave, so FD's own scope (notifyAdmin only) is not a regression.
+4. **Tex brand tokens**: spot-checked `admin.css`'s `:root` block still reads `--teal: #15192F`, `--coral: #F15F2C`, `--sky: #2348C7` after every commit this wave touched CSS.
+5. **No em dashes**: `grep "—"` on every line added to this file caught 2 hits (fixed inline, replaced with the file's own " - " convention). The same check on the 14 wave-02 commit messages caught 2 more, both already committed (`76da12b`, `864ff53`) - not amended, per the binding "always create new commits, never amend" rule; flagged here instead as a minor, purely-cosmetic self-review finding (prose inside commit bodies, not code, comments, or user-visible copy).
+6. **`git status --short`** at the end of the dispatch: clean working tree.
+
+## Concerns / notes for later waves
+
+- The extension "send payment link" flow was never exercised against a real Stripe test-mode checkout in this dispatch (no dev server, no live Stripe call per the binding constraints) - only unit/integration-level coverage (`extend-booking.test.ts`'s mocked Stripe client) and the reserve-mode guard's negative path. Task 7's full-gate manual smoke should include an extension paid by link.
+- Note 10(a)'s forward-looking flag: if a later wave's migration references `payment_type`'s new values (`rental_deposit`/`rental_full`/`extension`) in a CHECK constraint, partial index, or exclusion predicate, re-run the same-transaction-unsafe-use check before assuming `ALTER TYPE ... ADD VALUE` is safe - 0017 itself was clean, but the next migration to touch this enum might not be.
+- Task 9's runbook (above) now carries the `NEXT_PUBLIC_SITE_NAME`/`NEXT_PUBLIC_SITE_URL`/`NEXT_PUBLIC_WHATSAPP_NUMBER` Dockerfile + wrangler.jsonc items alongside the wave-01 storage vars and the 0016 downtime note; nothing in this list has been executed.
+- No other blockers. Full suite green, tsc clean, lint clean (one pre-existing warning), migration smoke clean, working tree clean.
