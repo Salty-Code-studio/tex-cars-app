@@ -97,7 +97,7 @@ describe("confirmBookingAdmin (service)", () => {
 
   it("rejects a cancelled booking (conflict)", async () => {
     const bk = await makePendingBooking({ email: "svc-cancel@test.com", startDate: "2029-03-01", endDate: "2029-03-05" });
-    await cancelBookingAdmin(bk.id);
+    await cancelBookingAdmin(bk.id, false, new Date().toISOString());
     await expectReject(confirmBookingAdmin(bk.id), /no longer be confirmed/i);
   });
 
