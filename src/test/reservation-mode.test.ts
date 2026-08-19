@@ -116,6 +116,23 @@ describe("reserve-mode guards", () => {
     }
   });
 
+  it("createExtensionCheckout throws conflict in reserve mode", async () => {
+    process.env.PAYMENT_MODE = "reserve";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
+    const { createExtensionCheckout } = await import("@/lib/payments/checkout");
+    try {
+      // The guard fires before the booking argument, the DB, or Stripe is
+      // touched, so a minimal stub row suffices (same spirit as the
+      // nonexistent UUID the sibling test hands createBookingCheckout).
+      await createExtensionCheckout({ id: "00000000-0000-0000-0000-000000000000" } as never, 5800);
+      throw new Error("expected createExtensionCheckout to throw");
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      expect(err.code).toBe("conflict");
+      expect(err.message).toMatch(/disabled/i);
+    }
+  });
+
   it("expireStaleHolds returns 0 and cancels nothing in reserve mode", async () => {
     const old = new Date(Date.now() - 60 * 60_000); // 60 min ago, well past any TTL
     const [b] = await db.insert(bookings).values({
