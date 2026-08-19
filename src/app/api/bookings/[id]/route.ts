@@ -6,7 +6,7 @@ import { parseParams } from "@/lib/http/validate";
 import { Errors } from "@/lib/http/errors";
 import { enforceRateLimit } from "@/lib/http/rate-limit";
 import { getDb } from "@/lib/db/client";
-import { bookings } from "@/lib/db/schema";
+import { bookings, vehicles } from "@/lib/db/schema";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +25,13 @@ export const GET = withRoute(async (req, { params }) => {
     // Additive (Task 12): lets the confirmation page show "Payment received: $X"
     // without a second round trip. Still no PII.
     amountPaidCents: bookings.amountPaidCents,
-  }).from(bookings).where(eq(bookings.id, id));
+    // Additive (Task 4, desk-mode-adoption): the redesigned confirmation page's
+    // summary card names the class + car. Vehicle class/name is not PII (same
+    // fact already shown in the authenticated /account view via
+    // listCustomerBookings' identical join); a left join keeps the booking
+    // status lookup resilient even if a vehicle row were ever missing.
+    vehicleClass: vehicles.class, vehicleName: vehicles.name,
+  }).from(bookings).leftJoin(vehicles, eq(bookings.vehicleId, vehicles.id)).where(eq(bookings.id, id));
   if (!booking) throw Errors.notFound("Booking not found");
   return json(booking, req);
 });

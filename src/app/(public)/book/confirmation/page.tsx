@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { formatDateTime } from "@/lib/time/format";
 import { siteConfig } from "@/lib/site-config";
+import type { QuoteBreakdown } from "@/lib/booking/quote";
+import "./confirmation.css";
 
 const DESK_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "desk";
 
@@ -12,7 +14,9 @@ interface Booking {
   startAt: string;
   endAt: string;
   amountPaidCents?: number;
-  priceBreakdown?: { currency?: string } | null;
+  priceBreakdown?: Partial<QuoteBreakdown> | null;
+  vehicleClass?: string | null;
+  vehicleName?: string | null;
 }
 
 // Same key book/page.tsx persists the in-progress wizard draft under
@@ -36,6 +40,52 @@ const BACKOFF_MS = [
 
 const money = (cents: number, currency = "USD") =>
   currency === "USD" ? `$${(cents / 100).toFixed(2)}` : `${currency} ${(cents / 100).toFixed(2)}`;
+
+/** Short human reference derived from the booking id - same derivation the
+ *  rental contract PDF already uses (src/lib/admin/inspections.ts's
+ *  contractRef), so the number on paper and the number on screen match. */
+const reference = (id: string) => id.slice(0, 8).toUpperCase();
+
+interface Step {
+  title: string;
+  body: string;
+}
+
+/** Pending: a slow breathing ring in cobalt. Deliberately NOT a spinner -
+ *  scale + opacity only, no rotation - and reduced-motion turns the pulse off
+ *  in the CSS, leaving a plain static ring. */
+function RingMark() {
+  return (
+    <div className="conf-mark" aria-hidden="true">
+      <div className="conf-ring-pulse" />
+      <div className="conf-ring-core">
+        <div className="conf-ring-dot" />
+      </div>
+    </div>
+  );
+}
+
+/** Confirmed: a hand-drawn checkmark in coral, pure CSS/SVG (stroke-dashoffset
+ *  animation, disabled under reduced motion in the CSS). */
+function CheckMark() {
+  return (
+    <div className="conf-mark" aria-hidden="true">
+      <svg viewBox="0 0 72 72" width="72" height="72">
+        <circle className="conf-check-ring" cx="36" cy="36" r="33" />
+        <path className="conf-check-path" d="M20 38 L30 48 L52 24" />
+      </svg>
+    </div>
+  );
+}
+
+/** Small static check used inside step 1's badge once confirmed. */
+function StepCheck() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+      <path d="M5 13 L9.5 17.5 L19 6.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function ConfirmationPage() {
   const [booking, setBooking] = useState<Booking | null>(null);
@@ -92,52 +142,144 @@ export default function ConfirmationPage() {
   }
 
   const confirmed = booking?.status === "confirmed";
+  const notFound = !loading && !booking;
+
+  function subText(): string {
+    if (notFound) return "If you just booked, check your email, or message us on WhatsApp and we will help.";
+    if (!booking) return "Checking your booking.";
+    if (confirmed) {
+      return DESK_MODE
+        ? "Your reservation is confirmed. See you at pickup."
+        : "Payment received. Your booking is confirmed.";
+    }
+    return DESK_MODE
+      ? "Your booking is in. Our team is confirming it now."
+      : "Your booking is held. If you already paid, this confirms in a moment.";
+  }
+
+  function stepsFor(): Step[] {
+    if (DESK_MODE) {
+      return [
+        {
+          title: "We confirm by email",
+          body: confirmed
+            ? "Confirmed. Check your inbox for the confirmation email."
+            : "Our team reviews every booking. You will get an email the moment it is confirmed.",
+        },
+        { title: "Questions? WhatsApp us", body: "Message us any time on WhatsApp and we will get right back to you." },
+        { title: "Pay at pickup", body: "Bring your license and pay at the desk when you collect the car." },
+      ];
+    }
+    return [
+      {
+        title: "We confirm your payment",
+        body: confirmed
+          ? "Confirmed. Check your inbox for the confirmation email."
+          : "We are finalizing your payment. You will get an email as soon as it clears.",
+      },
+      { title: "Questions? WhatsApp us", body: "Message us any time on WhatsApp and we will get right back to you." },
+      { title: "We arrange delivery", body: "We will reach out on WhatsApp to arrange delivery of your car." },
+    ];
+  }
+
+  const heading = confirmed ? "You're booked" : notFound ? "We could not find that booking" : "Almost there";
+
+  // Price rows: desk mode never shows payment language (no online charge
+  // exists to report); the confirmed+non-desk branch alone keeps the original
+  // "Payment received: $X" fact, now as a row instead of a loose paragraph.
+  const bd = booking?.priceBreakdown;
+  const hasTotal = typeof bd?.subtotalCents === "number";
+  const totalCents = hasTotal ? bd!.subtotalCents! : 0;
+  const youngDriverCents = typeof bd?.youngDriverCents === "number" ? bd.youngDriverCents : 0;
+  const baseRentalCents = totalCents - youngDriverCents;
+  const currency = bd?.currency ?? "USD";
+  const depositCents = typeof bd?.depositCents === "number" ? bd.depositCents : null;
+  const paidCents = booking?.amountPaidCents;
 
   return (
-    <div className="wrap confirm">
-      <div className="card">
-        <div className="big" aria-hidden="true">{confirmed ? "✅" : "🚗"}</div>
-        <h1>{confirmed ? "Booking confirmed" : DESK_MODE ? "Booking received" : "Your car is reserved"}</h1>
-        {loading ? (
-          <p className="note">Checking your booking…</p>
-        ) : !booking ? (
-          <p>We&apos;ve received your request. Our team will be in touch shortly.</p>
-        ) : confirmed ? (
-          DESK_MODE ? (
-            <p>Your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is confirmed. See you at pickup; you pay at the desk.</p>
-          ) : (
-            <>
-              <p>Payment received and your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is confirmed.
-                We&apos;ll arrange delivery on WhatsApp. See you soon.</p>
-              {typeof booking.amountPaidCents === "number" && booking.amountPaidCents > 0 && (
-                <p className="note">Payment received: {money(booking.amountPaidCents, booking.priceBreakdown?.currency)}</p>
-              )}
-            </>
-          )
-        ) : DESK_MODE ? (
-          <p>Your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is in. Our team will confirm it shortly and you pay at pickup. A confirmation email is on its way once it is approved.</p>
-        ) : (
-          <>
-            <p>Your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is held. If you just paid, the
-              confirmation lands in a moment. Our team will also reach out on WhatsApp.</p>
-            {polling ? (
-              <p className="note">Checking your payment…</p>
+    <div className="wrap conf-page">
+      <div className="conf-hero">
+        {loading || (booking && !confirmed) ? <RingMark /> : null}
+        {confirmed ? <CheckMark /> : null}
+        <h1 className="conf-h1">{heading}</h1>
+        <div aria-live="polite">
+          <p className="conf-sub">{subText()}</p>
+          {booking && !confirmed ? (
+            polling ? (
+              <p className="conf-status">Checking for an update…</p>
             ) : exhausted ? (
-              <div style={{ marginTop: "1rem" }}>
-                <button type="button" className="btn" onClick={checkAgain} disabled={checking}>
+              <div className="conf-recheck">
+                <p className="conf-status">This is taking a little longer than usual.</p>
+                <button type="button" className="btn btn-quiet" onClick={checkAgain} disabled={checking}>
                   {checking ? "Checking…" : "Check again"}
                 </button>
-                {siteConfig.whatsappHref && (
-                  <p className="note">
-                    <a href={siteConfig.whatsappHref} target="_blank" rel="noreferrer">Questions? Message us on WhatsApp</a>
-                  </p>
-                )}
               </div>
-            ) : null}
-          </>
-        )}
-        <p style={{ marginTop: "2rem" }}><a href={siteConfig.siteUrl}>← {siteConfig.backLinkLabel}</a></p>
+            ) : null
+          ) : null}
+        </div>
       </div>
+
+      {booking && (
+        <dl className="conf-card" aria-label="Reservation summary">
+          <div className="conf-card-head">Reservation summary</div>
+          {booking.vehicleClass && (
+            <div className="conf-row"><dt>Class</dt><dd>{booking.vehicleClass}</dd></div>
+          )}
+          {booking.vehicleName && (
+            <div className="conf-row"><dt>Car</dt><dd>{booking.vehicleName}</dd></div>
+          )}
+          <div className="conf-row"><dt>Pickup</dt><dd>{formatDateTime(booking.startAt)}</dd></div>
+          <div className="conf-row"><dt>Return</dt><dd>{formatDateTime(booking.endAt)}</dd></div>
+          {hasTotal && (
+            <div className="conf-row"><dt>Rental</dt><dd>{money(baseRentalCents, currency)}</dd></div>
+          )}
+          {youngDriverCents > 0 && (
+            <div className="conf-row"><dt>Young driver</dt><dd>{money(youngDriverCents, currency)}</dd></div>
+          )}
+          {hasTotal && (
+            <div className="conf-row conf-row--total"><dt>Total</dt><dd>{money(totalCents, currency)}</dd></div>
+          )}
+          {DESK_MODE && depositCents !== null && (
+            <div className="conf-row"><dt>Refundable deposit</dt><dd>{money(depositCents, currency)}</dd></div>
+          )}
+          {!DESK_MODE && confirmed && typeof paidCents === "number" && paidCents > 0 && (
+            <div className="conf-row"><dt>Paid</dt><dd>{money(paidCents, currency)}</dd></div>
+          )}
+          <div className="conf-row conf-row--ref"><dt>Reference</dt><dd>{reference(booking.id)}</dd></div>
+        </dl>
+      )}
+
+      {booking && (
+        <div className="conf-steps">
+          <p className="conf-steps-head">What happens next</p>
+          <ol className="conf-steps-list">
+            {stepsFor().map((step, i) => {
+              const done = i === 0 && confirmed;
+              return (
+                <li className="conf-step" key={step.title}>
+                  <span className={done ? "step-n conf-step-done" : "step-n"}>
+                    {done ? <StepCheck /> : i + 1}
+                  </span>
+                  <div>
+                    <p className="conf-step-title">{step.title}</p>
+                    <p className="conf-step-body">{step.body}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
+      {!loading && siteConfig.whatsappHref && (
+        <a href={siteConfig.whatsappHref} target="_blank" rel="noreferrer" className="btn conf-cta">
+          Message us on WhatsApp
+        </a>
+      )}
+
+      <p className="conf-footer">
+        <a href={siteConfig.siteUrl}>← {siteConfig.backLinkLabel}</a>
+      </p>
     </div>
   );
 }
