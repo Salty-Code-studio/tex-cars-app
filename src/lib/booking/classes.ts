@@ -63,7 +63,7 @@ export async function getClasses(pickup?: string, end?: string): Promise<ClassOp
 }
 
 /**
- * Count of ACTIVE same-class vehicles free for [startAt, endAt) — the
+ * Count of ACTIVE same-class vehicles free for [startAt, endAt): the
  * manager-facing "X of Y free" ratio used in approval messages. Delegates
  * every overlap/buffer/block/blackout rule to checkAvailability (one source
  * of truth per car) instead of re-deriving them, so this never drifts from
