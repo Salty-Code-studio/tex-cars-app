@@ -3,6 +3,7 @@
  * what the booking flow needs — no internal fields, no PII.
  */
 import { eq, asc } from "drizzle-orm";
+import { env } from "@/env";
 import { getDb } from "@/lib/db/client";
 import { vehicles, insuranceTiers, addOns } from "@/lib/db/schema";
 import { getSettings } from "@/lib/admin/settings";
@@ -151,6 +152,13 @@ export interface PublicBookingConfig {
    *  time pickers never offer a slot the quote will then reject. */
   openingTime: string;
   closingTime: string;
+  /** "desk" = no online payment; the wizard skips checkout and shows pay-at-pickup.
+   *  Informational only — the client wizard gates on the build-time
+   *  NEXT_PUBLIC_PAYMENT_MODE constant (see book/page.tsx's DESK_MODE), not
+   *  this field, matching Tex's existing baked-at-build-time design (the
+   *  desk-vs-reserve decision memo section 5). Kept for API parity and any
+   *  future consumer that wants server-truth mode without a redeploy. */
+  paymentMode: "stripe" | "desk";
 }
 
 /** Non-sensitive booking settings the wizard needs before it can quote
@@ -166,5 +174,6 @@ export async function publicBookingConfig(): Promise<PublicBookingConfig> {
     currency: s.currency,
     openingTime: s.openingTime,
     closingTime: s.closingTime,
+    paymentMode: env.PAYMENT_MODE,
   };
 }
