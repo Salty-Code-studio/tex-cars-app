@@ -6,6 +6,11 @@ delete process.env.STRIPE_SECRET_KEY;
 delete process.env.STRIPE_WEBHOOK_SECRET;
 process.env.TELEGRAM_BOT_TOKEN = "123:desktesttoken";
 process.env.TELEGRAM_WEBHOOK_SECRET = "hook-secret-desk-confirm";
+// The confirmed-email assertions below check the WhatsApp CTA is config-driven
+// (siteConfig reads this at module-eval time, safely before the dynamic
+// imports in beforeAll), pinned to the same number the live deploy's env
+// carries.
+process.env.NEXT_PUBLIC_WHATSAPP_NUMBER = "2975945454";
 
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import type { OutboundEmail } from "@/lib/email/send";
@@ -33,6 +38,7 @@ vi.stubGlobal("fetch", vi.fn(async (url: RequestInfo | URL) => {
 }));
 
 let requestId = "";
+let confirmBookingId = "";
 
 beforeAll(async () => {
   const { runMigrations } = await import("@/lib/db/migrate");
@@ -67,6 +73,7 @@ beforeAll(async () => {
   await createApprovalRequest(b!.id);
   const [row] = await db.select().from(approvalRequests).where(eq(approvalRequests.bookingId, b!.id));
   requestId = row!.id;
+  confirmBookingId = b!.id;
 });
 
 describe("desk-mode confirmation copy", () => {
@@ -84,6 +91,24 @@ describe("desk-mode confirmation copy", () => {
     expect(html.toLowerCase()).not.toContain("payment");
     expect(subject.toLowerCase()).not.toContain("payment");
     expect(html).toContain("pay at pickup");
+
+    // 2026-08-19 redesign: notifyBookingConfirmed's context() query now also
+    // selects vehicles.class, customers.name, and passes the booking id
+    // through, so this proves the real DB wiring reaches the branded email,
+    // not just that the pure template renders correctly in isolation
+    // (email-templates.test.ts covers the template itself with hand-built args).
+    expect(html).toContain(">Jeep<");                        // vehicles.class from the fixture
+    expect(html).toContain("Hi Desk,");                       // first name from customers.name "Desk Cust"
+    expect(html).toContain(confirmBookingId.slice(0, 8).toUpperCase()); // reservation reference
+
+    // The WhatsApp CTA is config-driven, never a template literal: both the
+    // button href and the written-out number must be exactly what siteConfig
+    // derived from NEXT_PUBLIC_WHATSAPP_NUMBER (pinned at the top of this file
+    // to the live deploy's value).
+    const { siteConfig } = await import("@/lib/site-config");
+    expect(siteConfig.whatsappHref).toBe("https://wa.me/2975945454");
+    expect(html).toContain(`href="${siteConfig.whatsappHref}"`);
+    expect(html).toContain(siteConfig.whatsappDisplay);
 
     // Task 3: the owner also gets a "Reservation confirmed" copy, fanned out
     // to every configured recipient, on this exact same confirm funnel.
@@ -103,7 +128,8 @@ describe("desk-mode confirmation copy", () => {
     const { bookingConfirmedEmail } = await import("@/lib/email/templates");
     const { atAruba } = await import("@/lib/time/format");
     const online = bookingConfirmedEmail({
-      vehicleName: "Kia Sportage",
+      bookingId: "aaaaaaaa-1111-2222-3333-444444444444",
+      vehicleClass: "SUV", vehicleName: "Kia Sportage", customerName: "Online Customer",
       startAt: atAruba("2027-01-01", "10:00"), endAt: atAruba("2027-01-05", "10:00"),
       rentalTotalCents: 18000, currency: "USD",
       amountPaidCents: 4000, chargeType: "rental_deposit",
