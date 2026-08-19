@@ -22,9 +22,12 @@ import { settings, vehicles, insuranceTiers, addOns } from "../src/lib/db/schema
 // The last 4 cars (oldest Suzukis) have NO V-plate listed in the sheet.
 // Task 6 of the FleetDesk parity port (2026-08) marks them status: "retired"
 // below rather than fabricating V-plates. Rows are KEPT for history, not
-// deleted. Retired vehicles already disappear from the fleet default view,
-// planning board, and public classes. make/model/year/color are backfilled
-// below for every row (retired ones included) by splitting `name`; see
+// deleted. Retired vehicles are already hidden from the planning board
+// (src/lib/admin/planning.ts) and public classes (src/lib/booking/classes.ts);
+// the admin Fleet list still shows them (with an "off" status badge and no
+// Retire button) so the owner can keep managing retired inventory, which is
+// intentional, not a gap. make/model/year/color are backfilled below for
+// every row (retired ones included) by splitting `name`; see
 // docs/PORT-LOG.md "Owner settings to confirm" for what is still pending.
 const FLEET = [
   { slug: "ford-figo-v-7111", plate: "V-7111", class: "Economy", name: "Ford Figo · White · 2020", make: "Ford", model: "Figo", year: 2020, color: "White", seats: 5, transmission: "Automatic", ac: true, doors: 5, priceDayCents: 3500, priceWeekCents: 21000, priceMonthCents: 70000, depositCents: 25000 },
