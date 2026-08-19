@@ -328,7 +328,7 @@ Commits `2eea63b`..`7220eea` (10 hashes, see the ledger above for each hash's ta
 
 ## Task 4, wave 02: payments redesign, extensions, refunds, cancellation policy, site-config branding
 
-Commits `076b9c5`..`5662406` (13 hashes, see the ledger above for each hash's target commit), plus the journal-guard test commit `2ad3a39`. Source: `fleetdesk/main`. Mechanics: individual `git cherry-pick -n <hash>` per commit, conflict-resolved per the playbook, one Tex commit per FD hash. Start HEAD: `47c6b52` (wave-01 end). End HEAD: `2ad3a39`.
+Commits `076b9c5`..`5662406` (13 hashes, see the ledger above for each hash's target commit), plus the journal-guard test commit `2ad3a39` and the docs commit `9cd5687`. Source: `fleetdesk/main`. Mechanics: individual `git cherry-pick -n <hash>` per commit, conflict-resolved per the playbook, one Tex commit per FD hash. Start HEAD: `47c6b52` (wave-01 end). End HEAD after the review fix loop: the docs commit carrying this very update, sitting directly on top of fix-loop commits `eba11fe` and `c504d04` (see the fix-loop section below; a docs commit cannot state its own hash, so the wave's true final commit is `git log -1` on the branch).
 
 ### Commit list (start to end)
 
@@ -388,9 +388,27 @@ Ran a full repo-wide sweep after the last wave-02 commit, before considering the
 5. **No em dashes**: `grep "—"` on every line added to this file caught 2 hits (fixed inline, replaced with the file's own " - " convention). The same check on the 14 wave-02 commit messages caught 2 more, both already committed (`76da12b`, `864ff53`) - not amended, per the binding "always create new commits, never amend" rule; flagged here instead as a minor, purely-cosmetic self-review finding (prose inside commit bodies, not code, comments, or user-visible copy).
 6. **`git status --short`** at the end of the dispatch: clean working tree.
 
+### Wave-02 review fix loop (2026-08-19)
+
+The wave-02 review approved the functional code and returned one Important finding plus two minors, all closed here:
+
+| Hash | Subject |
+|---|---|
+| `eba11fe` | test(payments): cover createExtensionCheckout reserve-mode guard (wave-02 review) |
+| `c504d04` | fix(env): blank the site-config example values to match their leave-unset comment (wave-02 review) |
+| (this docs commit) | docs(port): wave-02 fix loop, true end HEAD, concerns correction |
+
+1. **Important: the `createExtensionCheckout` reserve-mode guard (checkout.ts:136) had zero test coverage**, and the original report overclaimed that its negative path was "verified". Fixed in `eba11fe`: a new case in `src/test/reservation-mode.test.ts`'s existing "reserve-mode guards" describe, mirroring the sibling `createBookingCheckout` case exactly (PAYMENT_MODE set after `vi.resetModules()` and before the dynamic import, per the file's env rule; asserts the conflict code and /disabled/i message). Verified load-bearing both ways before committing: with the guard temporarily commented out the test fails (`err.code` undefined - the call falls through toward getDb/getStripe); restored, it passes. File now 8/8. The false "verified" sentence in `.superpowers/sdd/task-4-wave02-report.md` was corrected to point at this test.
+2. **Minor: `.env.example` was self-contradictory** (comment said leave the site vars unset; two of the three had real values). Fixed in `c504d04`: all three now blank, matching the comment and Note 10(b); real local values stay in gitignored `.env.local`.
+3. **Minor: the section intro's "End HEAD: `2ad3a39`" was stale** (it predated even the wave's own docs commit `9cd5687`). Corrected above to the fix-loop shape.
+
+Recorded by the review as accepted-not-fixed (for the final review's awareness): the hardcoded TEXCARS wordmark spans in the public layout and email shell, per the disclosed rationale in commit `b9fc0f6` and Note 10(b) (siteConfig's single plain string cannot represent the two-tone styled mark or the "Tex Cars & Leasing" legal name).
+
+Gates after the fix loop: `reservation-mode.test.ts` 8/8, `reservation-mode.test.ts` + `extend-booking.test.ts` 17/17, `npx tsc --noEmit` clean, full suite 57 files / 293 tests green.
+
 ## Concerns / notes for later waves
 
-- The extension "send payment link" flow was never exercised against a real Stripe test-mode checkout in this dispatch (no dev server, no live Stripe call per the binding constraints) - only unit/integration-level coverage (`extend-booking.test.ts`'s mocked Stripe client) and the reserve-mode guard's negative path. Task 7's full-gate manual smoke should include an extension paid by link.
+- The extension "send payment link" flow was never exercised against a real Stripe test-mode checkout in this dispatch (no dev server, no live Stripe call per the binding constraints). Coverage is unit/integration-level: `extend-booking.test.ts`'s mocked Stripe client for the happy path, and (since the review fix loop, commit `eba11fe`) a dedicated reserve-mode guard test in `reservation-mode.test.ts`. Task 7's full-gate manual smoke should include an extension paid by link.
 - Note 10(a)'s forward-looking flag: if a later wave's migration references `payment_type`'s new values (`rental_deposit`/`rental_full`/`extension`) in a CHECK constraint, partial index, or exclusion predicate, re-run the same-transaction-unsafe-use check before assuming `ALTER TYPE ... ADD VALUE` is safe - 0017 itself was clean, but the next migration to touch this enum might not be.
 - Task 9's runbook (above) now carries the `NEXT_PUBLIC_SITE_NAME`/`NEXT_PUBLIC_SITE_URL`/`NEXT_PUBLIC_WHATSAPP_NUMBER` Dockerfile + wrangler.jsonc items alongside the wave-01 storage vars and the 0016 downtime note; nothing in this list has been executed.
 - No other blockers. Full suite green, tsc clean, lint clean (one pre-existing warning), migration smoke clean, working tree clean.
