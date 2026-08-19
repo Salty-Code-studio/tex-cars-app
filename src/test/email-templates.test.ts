@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   loginCodeEmail, bookingConfirmedEmail, bookingCancelledEmail, adminNewBookingEmail, adminPaymentEmail,
   adminDocumentExpiringEmail,
 } from "@/lib/email/templates";
+import { siteConfig } from "@/lib/site-config";
 import { atAruba, formatDateTime } from "@/lib/time/format";
 
 const startAt = atAruba("2026-07-01", "09:00");
@@ -159,14 +160,20 @@ describe("email templates", () => {
     expect(html).toContain("cash or card");
     expect(html.toLowerCase()).not.toContain("payment");
 
-    // "Questions or special requests": bulletproof WhatsApp button (a padded
-    // table-cell link, not a bare <a>), the number written out, and reply-to
-    // this email as the alternative.
+    // "Questions or special requests": config-driven contact. This file's env
+    // has no NEXT_PUBLIC_WHATSAPP_NUMBER (vitest never loads .env.local), so
+    // siteConfig.whatsappHref is null and the template takes its no-button
+    // branch: the block still renders with the written-out number + reply-to,
+    // and the number is siteConfig.whatsappDisplay's DOCUMENTED TEX DEFAULT,
+    // pinned as a raw literal here on purpose (the current deploy's number).
+    // The configured-number branch (button present) is covered by the
+    // dedicated test below and by desk-confirm-copy.test.ts's full pipeline.
+    expect(siteConfig.whatsappHref).toBeNull();
     expect(html).toContain("Questions or special requests");
-    expect(html).toMatch(/<td[^>]*background-color:#f15f2c[^>]*>\s*<a href="https:\/\/wa\.me\/2975945454"/);
-    expect(html).toContain("Message us on WhatsApp");
+    expect(html).not.toContain("wa.me");
     expect(html).toContain("+297 594 5454");
     expect(html).toContain('href="tel:+2975945454"');
+    expect(html).toContain("Reach us at");
     expect(html).toContain("reply to this email");
 
     // Bring-your-license reminder.
@@ -186,17 +193,58 @@ describe("email templates", () => {
     expect(html).not.toMatch(/display:\s*grid/);
     expect(html).not.toMatch(/position:\s*(absolute|relative|fixed)/);
 
-    // Dark-mode-safe: white text appears in exactly two places, the navy
-    // header band and the coral WhatsApp button, and both carry an explicit
-    // background-color (plus a legacy bgcolor attribute) on that very same
-    // table cell, so no dark-mode client can invert one half of the pair and
-    // strand pale text on an assumed-white surface. The lookbehind excludes
+    // Dark-mode-safe: in this no-button branch white text appears in exactly
+    // one place, the navy header band, whose table cell carries an explicit
+    // background-color (plus a legacy bgcolor attribute), so no dark-mode
+    // client can invert one half of the pair and strand pale text on an
+    // assumed-white surface. The lookbehind excludes
     // "background-color:#ffffff" (the card surface, a background not a text
-    // color) from the count.
+    // color) from the count. The button's own white-on-coral pairing is
+    // asserted in the configured-number test below.
     const whiteTextCount = (html.match(/(?<!-)color:#ffffff/g) ?? []).length;
-    expect(whiteTextCount).toBe(2); // header wordmark span + WhatsApp button link
+    expect(whiteTextCount).toBe(1); // header wordmark span
     expect(html).toContain('<td style="background-color:#15192f;padding:28px 32px;text-align:center;border-radius:14px 14px 0 0" bgcolor="#15192f">');
-    expect(html).toContain('<td style="border-radius:8px;background-color:#f15f2c" bgcolor="#f15f2c">');
+  });
+
+  it("bookingConfirmedEmail renders the coral WhatsApp button from siteConfig when the number is configured", async () => {
+    // siteConfig reads NEXT_PUBLIC_WHATSAPP_NUMBER at module-eval time, so the
+    // configured branch needs a fresh module graph with the env var set (the
+    // same value the live deploy's .env carries). resetModules in finally
+    // keeps the registry consistent with this file's env-unset static imports.
+    vi.resetModules();
+    process.env.NEXT_PUBLIC_WHATSAPP_NUMBER = "2975945454";
+    try {
+      const { bookingConfirmedEmail: render } = await import("@/lib/email/templates");
+      const { siteConfig: cfg } = await import("@/lib/site-config");
+      expect(cfg.whatsappHref).toBe("https://wa.me/2975945454");
+      expect(cfg.whatsappDisplay).toBe("+297 594 5454");
+
+      const html = render({
+        bookingId, vehicleClass: "SUV", vehicleName: "Hyundai Creta", customerName: "Maria Garcia",
+        startAt, endAt, rentalTotalCents: 34800, currency: "USD", depositCents: 15000, paid: false,
+      }).html;
+
+      // Bulletproof button: a padded table-cell link (coral bg on the td, in
+      // both inline style and legacy bgcolor), href straight from siteConfig.
+      expect(html).toContain('<td style="border-radius:8px;background-color:#f15f2c" bgcolor="#f15f2c">');
+      expect(html).toContain(`<a href="${cfg.whatsappHref}"`);
+      expect(html).toContain(">Message us on WhatsApp</a>");
+
+      // Number written out from config (display + derived tel:), reply-to
+      // alternative phrased as "Or reach us at" when the button is present.
+      expect(html).toContain(`>${cfg.whatsappDisplay}</a>`);
+      expect(html).toContain('href="tel:+2975945454"');
+      expect(html).toContain("Or reach us at");
+      expect(html).toContain("reply to this email");
+
+      // White text pairs with an explicit background in this branch too:
+      // header band + button link, nothing else.
+      const whiteTextCount = (html.match(/(?<!-)color:#ffffff/g) ?? []).length;
+      expect(whiteTextCount).toBe(2);
+    } finally {
+      delete process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+      vi.resetModules();
+    }
   });
 
   it("bookingConfirmedEmail omits the refundable deposit row when no deposit is set on the class", () => {

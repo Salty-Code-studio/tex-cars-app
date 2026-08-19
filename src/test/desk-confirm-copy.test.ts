@@ -6,6 +6,11 @@ delete process.env.STRIPE_SECRET_KEY;
 delete process.env.STRIPE_WEBHOOK_SECRET;
 process.env.TELEGRAM_BOT_TOKEN = "123:desktesttoken";
 process.env.TELEGRAM_WEBHOOK_SECRET = "hook-secret-desk-confirm";
+// The confirmed-email assertions below check the WhatsApp CTA is config-driven
+// (siteConfig reads this at module-eval time, safely before the dynamic
+// imports in beforeAll), pinned to the same number the live deploy's env
+// carries.
+process.env.NEXT_PUBLIC_WHATSAPP_NUMBER = "2975945454";
 
 import { describe, it, expect, beforeAll, vi } from "vitest";
 import type { OutboundEmail } from "@/lib/email/send";
@@ -95,8 +100,15 @@ describe("desk-mode confirmation copy", () => {
     expect(html).toContain(">Jeep<");                        // vehicles.class from the fixture
     expect(html).toContain("Hi Desk,");                       // first name from customers.name "Desk Cust"
     expect(html).toContain(confirmBookingId.slice(0, 8).toUpperCase()); // reservation reference
-    expect(html).toContain('href="https://wa.me/2975945454"');
-    expect(html).toContain("+297 594 5454");
+
+    // The WhatsApp CTA is config-driven, never a template literal: both the
+    // button href and the written-out number must be exactly what siteConfig
+    // derived from NEXT_PUBLIC_WHATSAPP_NUMBER (pinned at the top of this file
+    // to the live deploy's value).
+    const { siteConfig } = await import("@/lib/site-config");
+    expect(siteConfig.whatsappHref).toBe("https://wa.me/2975945454");
+    expect(html).toContain(`href="${siteConfig.whatsappHref}"`);
+    expect(html).toContain(siteConfig.whatsappDisplay);
 
     // Task 3: the owner also gets a "Reservation confirmed" copy, fanned out
     // to every configured recipient, on this exact same confirm funnel.

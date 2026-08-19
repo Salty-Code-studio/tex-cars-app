@@ -108,6 +108,27 @@ export function bookingConfirmedEmail(args: {
   const ref = args.bookingId.slice(0, 8).toUpperCase();
   const siteHost = siteConfig.siteUrl.replace(/^https?:\/\//, "");
 
+  // Contact CTA is config-driven: siteConfig is the one module that keeps the
+  // WhatsApp number in sync across surfaces (its header comment names emails
+  // as one of them), so no wa.me or phone literal may live here. Same
+  // null-safe guard as the confirmation page's own WhatsApp CTA
+  // (book/confirmation/page.tsx): no configured number means no button, while
+  // the written-out number (whatsappDisplay, Tex default) + the reply-to line
+  // always render so the "Questions or special requests" block never goes
+  // contactless. telHref strips the display's spaces back to a dialable form.
+  const telHref = `tel:${siteConfig.whatsappDisplay.replace(/[^+\d]/g, "")}`;
+  const whatsappButton = siteConfig.whatsappHref
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="border-radius:8px;background-color:${CORAL}" bgcolor="${CORAL}">
+<a href="${siteConfig.whatsappHref}" target="_blank" rel="noreferrer" style="display:block;padding:13px 26px;font-family:${FONT};font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px">Message us on WhatsApp</a>
+</td>
+</tr>
+</table>
+`
+    : "";
+  const reachLead = siteConfig.whatsappHref ? "Or reach us at" : "Reach us at";
+
   const greetingLine = args.paid
     ? `Hi ${first}. Thanks, your payment came through and your car is reserved.`
     : `Hi ${first}, thanks for booking with Tex Cars.`;
@@ -189,14 +210,7 @@ export function bookingConfirmedEmail(args: {
 <td style="padding:22px 24px">
 <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:${INK}">Questions or special requests</p>
 <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:${MUTED}">Message us on WhatsApp any time and we will get right back to you.</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0">
-<tr>
-<td style="border-radius:8px;background-color:${CORAL}" bgcolor="${CORAL}">
-<a href="https://wa.me/2975945454" target="_blank" rel="noreferrer" style="display:block;padding:13px 26px;font-family:${FONT};font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px">Message us on WhatsApp</a>
-</td>
-</tr>
-</table>
-<p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:${MUTED}">Or reach us at <a href="tel:+2975945454" style="color:${BRAND};text-decoration:underline">+297 594 5454</a>, or simply reply to this email.</p>
+${whatsappButton}<p style="margin:16px 0 0;font-size:13px;line-height:1.6;color:${MUTED}">${reachLead} <a href="${telHref}" style="color:${BRAND};text-decoration:underline">${siteConfig.whatsappDisplay}</a>, or simply reply to this email.</p>
 </td>
 </tr>
 </table>
