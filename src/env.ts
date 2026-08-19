@@ -222,6 +222,16 @@ const EnvSchema = z
     // Owner Telegram alerts. Dormant until BOTH are set (same contract as WhatsApp).
     TELEGRAM_BOT_TOKEN: z.string().optional().default(""),
     TELEGRAM_CHAT_ID: z.string().optional().default(""),
+
+    // Object storage for inspection photos, licence copies, signatures, and
+    // contract PDFs. 'local' writes under LOCAL_STORAGE_DIR (dev/test);
+    // 'supabase' uses a PRIVATE Supabase Storage bucket via the service-role
+    // key (prod). Media is always PRIVATE; the app streams it to admins only.
+    STORAGE_DRIVER: z.enum(["supabase", "local"]).default("local"),
+    SUPABASE_URL: z.string().url().optional().or(z.literal("")).default(""),
+    SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(""),
+    STORAGE_BUCKET: z.string().optional().default("fleet-docs"),
+    LOCAL_STORAGE_DIR: z.string().optional().default(".dev-storage"),
   })
   .superRefine((data, ctx) => {
     // Stripe keys are only REQUIRED (beyond format-validity, already checked
@@ -255,6 +265,17 @@ const EnvSchema = z
         path: ["NEXT_PUBLIC_PAYMENT_MODE"],
         message:
           "NEXT_PUBLIC_PAYMENT_MODE must equal PAYMENT_MODE (they must match: both control the same payment mode, one server-side and one baked into the client bundle)",
+      });
+    }
+
+    // STORAGE_DRIVER=supabase requires real Supabase credentials; local (the
+    // dev/test default) needs none. Fail closed rather than boot into a
+    // driver that will 500 on first upload.
+    if (data.STORAGE_DRIVER === "supabase" && (!data.SUPABASE_URL || !data.SUPABASE_SERVICE_ROLE_KEY)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["STORAGE_DRIVER"],
+        message: "STORAGE_DRIVER=supabase requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY",
       });
     }
   });
