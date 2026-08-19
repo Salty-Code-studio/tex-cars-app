@@ -19,7 +19,7 @@
       // Pre-pushed via crane from the HOST network (Colima's NAT kills large
       // registry uploads; build with `wrangler containers build`, `docker save`,
       // then `crane push`). Swap back to "./Dockerfile" only if that's fixed.
-      "image": "registry.cloudflare.com/8cd6b08425f14fe7e1f52e4a10109545/tex-cars-app:parity-9152da8",
+      "image": "registry.cloudflare.com/8cd6b08425f14fe7e1f52e4a10109545/tex-cars-app:desk-e574e1a",
       "class_name": "TexCarsContainer",
       "name": "tex-cars-app",
       // Rolling deploys need >=2; keep low for a single-tenant backoffice.
