@@ -5,8 +5,9 @@
 // a Cloudflare Container (the app's Dockerfile). Two responsibilities only:
 //
 //   1. fetch()     — proxy every inbound request to the container's port 3000.
-//   2. scheduled() — the hold-expiry cron, moved off Vercel Cron onto a native
-//                    Cloudflare Cron Trigger (see wrangler.jsonc [triggers]).
+//   2. scheduled() — the hold-expiry + compliance-alerts crons, moved off
+//                    Vercel Cron onto native Cloudflare Cron Triggers (see
+//                    wrangler.jsonc [triggers]), dispatched by controller.cron.
 //
 // Design: docs/superpowers/specs/2026-08-03-tex-cars-cloudflare-golive-design.md
 // The Next.js app, its env contract (src/env.ts), schema, and business logic are
@@ -103,26 +104,33 @@ export default {
   },
 
   /**
-   * Cloudflare Cron Trigger. Replaces the Vercel cron in vercel.json. Calls the
-   * app's authenticated hold-expiry endpoint inside the container, passing the
-   * shared CRON_SECRET the route requires (src/app/api/cron/expire-holds).
+   * Cloudflare Cron Trigger dispatch. Replaces the Vercel crons in vercel.json.
+   * Keyed on controller.cron so one Worker handles both scheduled jobs: calls
+   * the matching authenticated route inside the container, passing the shared
+   * CRON_SECRET the route requires.
    */
   async scheduled(
-    _controller: ScheduledController,
+    controller: ScheduledController,
     env: Env,
     ctx: ExecutionContext,
   ): Promise<void> {
+    const jobs: Record<string, string> = {
+      "*/15 * * * *": "/api/cron/expire-holds",
+      "0 9 * * *": "/api/cron/compliance-alerts",
+    };
+    const path = jobs[controller.cron];
+    if (!path) return;
     const run = async (): Promise<void> => {
       const container = getContainer(env.CONTAINER, INSTANCE_ID);
       const secret = typeof env.CRON_SECRET === "string" ? env.CRON_SECRET : "";
       const res = await container.containerFetch(
-        new Request("http://container/api/cron/expire-holds", {
+        new Request(`http://container${path}`, {
           headers: { authorization: `Bearer ${secret}` },
         }),
         3000,
       );
       if (!res.ok) {
-        console.error(`cron expire-holds failed: HTTP ${res.status}`);
+        console.error(`cron ${path} failed: HTTP ${res.status}`);
       }
     };
     ctx.waitUntil(run());

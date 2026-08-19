@@ -52,8 +52,10 @@
   // once the zone is live. This creates the proxied DNS record + TLS for app.
   "routes": [{ "pattern": "app.tex-cars.com", "custom_domain": true }],
   "triggers": {
-    // Hold-expiry maintenance — was vercel.json's */15 cron.
-    "crons": ["*/15 * * * *"]
+    // Hold-expiry maintenance (*/15) + daily compliance alerts (0 9) — were
+    // vercel.json's crons; worker/index.ts scheduled() dispatches on
+    // controller.cron to the matching route.
+    "crons": ["*/15 * * * *", "0 9 * * *"]
   },
   "vars": {
     // Non-secret runtime config forwarded into the container by worker/index.ts.
