@@ -17,7 +17,7 @@ Phase 2 go-live runbook: accounts, secrets, first deploy).
 ## 0. Read this first
 
 - **Prerequisite:** this branch has passed Task 7's full gate (492/492 tests,
-  `tsc` clean, lint clean, build green, 23/23 HTTP smoke) and Mo's own review
+  `tsc` clean, lint 0 errors with 4 pre-existing warnings, build green, 23/23 HTTP smoke) and Mo's own review
   of the working branch. If any commit has landed on `feat/fleetdesk-parity`
   since that gate ran, rerun it before starting this runbook.
 - **Scope:** this document is the delta on top of `GO-LIVE-RUNBOOK.md`, not a
@@ -105,8 +105,9 @@ applied state to clean up if something goes wrong mid-run.
 
 **The `0016` downtime note.** `drizzle/0016_high_gladiator.sql` converts
 `bookings` (`start_at`/`end_at`/`buffer_end_at`) and `availability_blocks`
-(`start_at`/`end_at`) from `date` to `timestamptz`, backfilling every existing
-row at `09:00` **America/Aruba** wall time, converts
+(`start_at`/`end_at`) from `date` to `timestamptz`, backfilling existing
+booking rows at `09:00` **America/Aruba** wall time (availability blocks are
+cast at Aruba midnight on their original dates), converts
 `settings.turnaround_buffer_days` to `turnaround_buffer_hours` (`x24`), and
 drops and rebuilds the `bookings_no_overlap` `gist` exclusion constraint on
 the new timestamptz columns. The `ALTER TABLE` and constraint rebuild lock the
@@ -158,8 +159,10 @@ and the real values.
 
 ## 4. Env vars and secrets on the worker
 
-Everything below is already in `CONTAINER_ENV_KEYS`; nothing here needs a
-code change except the two Dockerfile items flagged explicitly.
+Everything below is already in `CONTAINER_ENV_KEYS` EXCEPT the
+`NEXT_PUBLIC_SITE_*` trio, which is deliberately not forwarded (those values
+are baked in at build time, see below). Nothing here needs a code change
+except the Dockerfile items flagged explicitly.
 
 | Var | Secret or plain var | Status |
 |---|---|---|
@@ -167,24 +170,27 @@ code change except the two Dockerfile items flagged explicitly.
 | `SUPABASE_SERVICE_ROLE_KEY` | `wrangler secret put` | new this port, from step 3 |
 | `PAYMENT_MODE`, `NEXT_PUBLIC_PAYMENT_MODE` | plain `vars`, already `"reserve"`/`"reserve"` in `wrangler.jsonc` | unchanged by this port unless Task 8 has since decided B/C |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `wrangler secret put` | Tex's pre-existing single-chat owner ping; unrelated to Task 8's desk-mode decision unless/until that lands |
-| `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER` | Dockerfile build-time `ENV` **and** `wrangler.jsonc` `vars` (see below) | new this port |
+| `NEXT_PUBLIC_SITE_NAME`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER` | Dockerfile build-time `ENV` only (see below) | new this port |
 
-**The `NEXT_PUBLIC_SITE_*` trio needs two separate edits, not one.** These are
-`NEXT_PUBLIC_*` vars, so Next.js inlines them into the **client bundle** at
+**The `NEXT_PUBLIC_SITE_*` trio is a Dockerfile edit, nothing else.** These
+are `NEXT_PUBLIC_*` vars, so Next.js inlines them into the client bundle at
 `next build` time, the same mechanism `NEXT_PUBLIC_PAYMENT_MODE` already uses
-(Dockerfile lines 57-68). A `wrangler.jsonc` `vars` entry alone only helps
-server-rendered output; it does not touch what is already baked into the
-shipped JS. Before step 5's rebuild:
+(Dockerfile lines 57-68), and a Dockerfile `ENV` also stays visible to the
+server process at runtime, so the one edit covers both sides. A
+`wrangler.jsonc` `vars` entry would do nothing here: the trio is not in
+`CONTAINER_ENV_KEYS`, so a worker var never reaches the app process, and it
+could not reach the already-built client JS anyway. Do not add them to
+`CONTAINER_ENV_KEYS` either; a rebuild is the only honest way to change them.
+Before step 5's rebuild:
 
 1. Add real values as new `ENV` lines in the Dockerfile's builder stage,
    right beside the existing `NEXT_PUBLIC_PAYMENT_MODE` line:
    `NEXT_PUBLIC_SITE_NAME=Tex Cars`, `NEXT_PUBLIC_SITE_URL=https://tex-cars.com`,
    `NEXT_PUBLIC_WHATSAPP_NUMBER=2975945454` (E.164 digits, no `+`, sourced
    from `site/data/config.js`'s `waNumber`).
-2. Add the same two non-secret values (`NEXT_PUBLIC_SITE_NAME`,
-   `NEXT_PUBLIC_SITE_URL`) to `wrangler.jsonc`'s `vars` block for
-   documentation parity with the runtime container. `NEXT_PUBLIC_WHATSAPP_NUMBER`
-   can go there too; none of the three are secret.
+2. Note that until those values ever change, even step 1 changes nothing
+   visible: the in-code fallbacks in `src/lib/site-config.ts` are already the
+   same real Tex values.
 
 If `docs/superpowers/specs/2026-08-18-tex-desk-vs-reserve-decision.md` has
 since been decided and Option B or C is underway, that work adds its own env
