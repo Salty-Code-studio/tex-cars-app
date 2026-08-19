@@ -50,6 +50,7 @@ interface WizardStorage {
   customer?: { name: string; email: string; phone: string };
   paymentOption?: "deposit" | "full";
   acceptTerms?: boolean;
+  driverAge?: "" | "young" | "standard";
 }
 
 function readWizardStorage(): WizardStorage {
@@ -286,6 +287,7 @@ export default function BookPage() {
     if (stored.customer !== undefined) setCustomer(stored.customer);
     if (stored.paymentOption !== undefined) setPaymentOption(stored.paymentOption);
     if (stored.acceptTerms !== undefined) setAcceptTerms(stored.acceptTerms);
+    if (stored.driverAge !== undefined) setDriverAge(stored.driverAge);
     if (stored.step !== undefined) setStep(Math.min(TOTAL, Math.max(1, stored.step)));
   }, []);
 
@@ -295,11 +297,11 @@ export default function BookPage() {
   useEffect(() => {
     try {
       const data: WizardStorage = {
-        step, selectedClass, pickup, ret, pickupTime, retTime, tierId, qty, license, customer, paymentOption, acceptTerms,
+        step, selectedClass, pickup, ret, pickupTime, retTime, tierId, qty, license, customer, paymentOption, acceptTerms, driverAge,
       };
       window.sessionStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify(data));
     } catch { /* storage unavailable (private mode, quota) — degrade to no persistence */ }
-  }, [step, selectedClass, pickup, ret, pickupTime, retTime, tierId, qty, license, customer, paymentOption, acceptTerms]);
+  }, [step, selectedClass, pickup, ret, pickupTime, retTime, tierId, qty, license, customer, paymentOption, acceptTerms, driverAge]);
 
   // On step change, move focus to the new step heading (skip the very first paint).
   useEffect(() => {
@@ -370,8 +372,12 @@ export default function BookPage() {
     setStep(n);
   }
 
-  // The reserve button on the final step is gated exactly as before.
-  const canReserve = !busy && acceptTerms && !!avail?.available;
+  // The reserve button on the final step is gated exactly as before, plus a
+  // driver-age check: a mid-wizard refresh restores every other field from
+  // WizardStorage, so this guards the (now also persisted) age claim too in
+  // case it's ever missing, rather than silently letting the button stay
+  // enabled with an unset / reset claim.
+  const canReserve = !busy && acceptTerms && !!avail?.available && !!driverAge;
 
   return (
     <div className="wrap book-grid">
