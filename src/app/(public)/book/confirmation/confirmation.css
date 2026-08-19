@@ -1,0 +1,243 @@
+/* Booking confirmation. conf-* classes layer on top of the shared .pub tokens
+   and utilities from ../public.css (.wrap, .btn, .btn-quiet, .step-n, .note) -
+   this file only adds what THIS page needs beyond that, per the studio's rule
+   against bloating public.css with single-page styling.
+
+   Both polling states (pending, confirmed) share one shell so the transition
+   between them never reflows the page: only the state mark, heading and
+   sub-line swap; the summary card and "what happens next" steps keep an
+   identical shape either way (desk mode surfaces no new row on confirm). */
+
+.wrap.conf-page {
+  max-width: 640px;
+  padding-top: clamp(2rem, 6vw, 3.5rem);
+  padding-bottom: 4rem;
+}
+
+/* ---------- hero: state mark + heading ---------- */
+.conf-hero {
+  text-align: center;
+  margin-bottom: 2.25rem;
+}
+.conf-mark {
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0 auto 1.4rem;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+/* pending: a slow breathing ring in cobalt (system/in-progress), never a
+   spinner - no rotation anywhere in this file. */
+.conf-ring-core {
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  border: 1.5px solid var(--sky);
+  background: rgba(35, 72, 199, 0.07);
+  display: grid;
+  place-items: center;
+}
+.conf-ring-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--sky);
+}
+.conf-ring-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--sky);
+  animation: conf-pulse 2.4s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+@keyframes conf-pulse {
+  0% { transform: scale(0.82); opacity: 0.5; }
+  75%, 100% { transform: scale(1.4); opacity: 0; }
+}
+/* confirmed: a drawn checkmark, the one place the state mark itself carries
+   the coral accent (paired with the WhatsApp CTA below as the page's other
+   coral moment - coral never becomes decorative background noise). */
+.conf-check-ring {
+  stroke: var(--coral);
+  stroke-width: 1.5;
+  fill: rgba(241, 95, 44, 0.07);
+}
+.conf-check-path {
+  fill: none;
+  stroke: var(--coral);
+  stroke-width: 4.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 52;
+  stroke-dashoffset: 52;
+  animation: conf-draw 0.5s 0.15s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+@keyframes conf-draw {
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .conf-ring-pulse { animation: none; opacity: 0; }
+  .conf-check-path { animation: none; stroke-dashoffset: 0; }
+}
+
+.conf-h1 {
+  font-size: clamp(1.6rem, 5vw, 2.1rem);
+  margin: 0 0 0.55rem;
+}
+.conf-sub {
+  max-width: 30rem;
+  margin: 0 auto;
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+.conf-status {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+.conf-recheck {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.conf-recheck .btn-quiet {
+  width: auto;
+}
+
+/* ---------- reservation summary card ---------- */
+.conf-card {
+  margin: 0 0 1.75rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.conf-card-head {
+  padding: 0.75rem 1.25rem;
+  background: var(--sand-2);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+/* label/value rows: the app's existing mono-uppercase-label convention
+   (matches .recap-row in ../public.css) rather than a new pattern. */
+.conf-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.8rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+.conf-row:last-child {
+  border-bottom: 0;
+}
+.conf-row dt {
+  margin: 0;
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.conf-row dd {
+  margin: 0;
+  text-align: right;
+  color: var(--ink);
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+/* tone-on-tone: the total row gets a hairline-separated sand tint, no border
+   color change, no new accent color. */
+.conf-row--total {
+  background: var(--sand);
+}
+.conf-row--total dt,
+.conf-row--total dd {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--teal);
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+.conf-row--ref dd {
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+/* ---------- what happens next ---------- */
+.conf-steps {
+  margin: 0 0 2.25rem;
+}
+.conf-steps-head {
+  text-align: center;
+  margin: 0 0 1.1rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.conf-steps-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1.1rem;
+}
+.conf-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  text-align: left;
+}
+.conf-step-title {
+  margin: 0 0 0.2rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.96rem;
+  color: var(--teal);
+}
+.conf-step-body {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+/* step 1's badge swaps its "1" glyph for a small check once confirmed. The
+   navy .step-n fill stays as is: coral is reserved for exactly two elements
+   on this page (the confirmed state mark and the WhatsApp CTA). */
+
+/* ---------- CTA + footer ---------- */
+.conf-cta {
+  max-width: 24rem;
+  margin: 0 auto 2rem;
+}
+.conf-footer {
+  text-align: center;
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+
+/* ---------- mobile (verified composition target: 390px) ---------- */
+@media (max-width: 460px) {
+  .conf-row {
+    padding: 0.75rem 1rem;
+  }
+  .conf-card-head {
+    padding: 0.7rem 1rem;
+  }
+}

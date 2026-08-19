@@ -228,26 +228,13 @@ export async function cancelBookingAdmin(id: string, refund: boolean, nowIso: st
   };
 }
 
-/**
- * Admin confirm from the board. Manually promotes a pending reservation
- * straight to confirmed (e.g. a cash deposit collected at the desk), without
- * an online payment webhook. Only pending → confirmed is allowed; anything
- * else (already confirmed, cancelled, completed) is a no-op conflict.
- */
-export async function confirmBookingAdmin(id: string) {
-  const db = await getDb();
-  const [booking] = await db.select().from(bookings).where(eq(bookings.id, id));
-  if (!booking) throw Errors.notFound("Booking not found");
-  if (booking.status !== "pending") {
-    throw Errors.conflict("This booking can no longer be confirmed");
-  }
-  // Conditional write: the status predicate makes the transition atomic, so a
-  // booking cancelled between the read above and this write (expire-holds cron,
-  // a second admin) can never be resurrected to confirmed.
-  const [updated] = await db.update(bookings)
-    .set({ status: "confirmed", updatedAt: new Date() })
-    .where(and(eq(bookings.id, id), eq(bookings.status, "pending")))
-    .returning();
-  if (!updated) throw Errors.conflict("This booking can no longer be confirmed");
-  return updated;
-}
+// Admin confirm used to live here (a plain conditional pending -> confirmed
+// flip, no online payment webhook). Retired 2026-08-19 (desk-mode adoption,
+// port ffa9733): FD's src/lib/admin/confirm-booking.ts is a strict superset
+// of what this did (same atomic conditional UPDATE as its fallback branch,
+// plus a first branch that routes through the approval-request decision
+// funnel when one is open, so a Telegram/email decision and an admin click
+// share one outcome instead of two separately-maintained gates). The admin
+// "Confirm reservation" button and the POST /api/admin/bookings/[id]/confirm
+// route both point at the new module now; nothing in this file calls or
+// re-exports confirmBookingAdmin anymore.

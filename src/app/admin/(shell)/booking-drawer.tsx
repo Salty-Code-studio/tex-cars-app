@@ -9,10 +9,10 @@ import { InspectionPanel } from "./inspection-panel";
 import type { BookingDetail, BookingDetailPayment } from "@/lib/admin/booking-detail";
 import "./booking-drawer.css";
 
-// Reserve-mode deployments have no Stripe client configured (see
+// Desk-mode deployments have no Stripe client configured (see
 // createExtensionCheckout's matching guard in checkout.ts); hide the link
 // option here rather than let the desk hit a clean-but-dead-end error toast.
-const RESERVE_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "reserve";
+const DESK_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "desk";
 
 interface VehicleOption { id: string; plate: string; name: string; class?: string; status?: string }
 
@@ -67,7 +67,6 @@ export function BookingDrawer({ bookingId, onClose, onChanged, extraSections = n
 
   const [showCancel, setShowCancel] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
-
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   const [showExtend, setShowExtend] = useState(false);
@@ -228,17 +227,20 @@ export function BookingDrawer({ bookingId, onClose, onChanged, extraSections = n
     setRefundBusy(false);
   }
 
-  /**
-   * Manual confirm for a pending reservation (Tex-only; FD has no equivalent
-   * since it has no reserve mode). Ported forward from the old BoardPopover's
-   * BookingPanel (Tex commit 9bb61fa), which this Drawer replaces wholesale.
-   */
+  // Positive, non-destructive: unlike Cancel, Confirm needs no modal
+  // double-check, so it is a plain fetch-and-refresh action on the button
+  // itself (same shape as the other actions below, just without a sub-panel).
+  // Originally ported forward from the old BoardPopover's BookingPanel (Tex
+  // commit 9bb61fa) when this Drawer replaced it wholesale; now points at
+  // src/lib/admin/confirm-booking.ts (2026-08-19, desk-mode adoption), which
+  // routes through the same first-tap-wins decision funnel a Telegram tap or
+  // email link uses when an approval request is open.
   async function doConfirm() {
     if (!bookingId) return;
     setConfirmBusy(true);
     try {
-      await api(`/api/admin/bookings/${bookingId}/confirm`, {});
-      toast.show({ type: "success", message: "Reservation confirmed." });
+      await api(`/api/admin/bookings/${bookingId}/confirm`);
+      toast.show({ type: "success", message: "Booking confirmed." });
       onChanged();
       await load();
     } catch (e) {
@@ -339,6 +341,12 @@ export function BookingDrawer({ bookingId, onClose, onChanged, extraSections = n
   }
 
   const b = detail?.booking;
+  // The confirm route only exists on desk deployments (online bookings are
+  // confirmed by the Stripe webhook when payment lands, see the matching
+  // isDeskMode gate in the route itself, the real enforcement) - DESK_MODE
+  // is a build-time constant, so this needs no fetch/loading state the way
+  // FD's own dynamically-fetched paymentMode did.
+  const canConfirm = DESK_MODE && b?.status === "pending";
   const canCancel = b?.status === "pending" || b?.status === "confirmed";
   // A car can be swapped for any live booking, including one already picked up
   // (the car can break down mid-rental). Only cancelled/completed are out.
@@ -421,10 +429,12 @@ export function BookingDrawer({ bookingId, onClose, onChanged, extraSections = n
               <h3>Actions</h3>
               {!showMove && !showSwap && (
                 <div className="pl-pop-actions">
-                  <button type="button" className="btn btn--quiet" onClick={openMove}>Move…</button>
-                  {b.status === "pending" && (
-                    <button type="button" className="btn" disabled={confirmBusy} onClick={doConfirm}>{confirmBusy ? "Confirming…" : "Confirm reservation"}</button>
+                  {canConfirm && (
+                    <button type="button" className="btn btn--accent" disabled={confirmBusy} onClick={doConfirm}>
+                      {confirmBusy ? "Confirming…" : "Confirm booking"}
+                    </button>
                   )}
+                  <button type="button" className="btn btn--quiet" onClick={openMove}>Move…</button>
                   <button type="button" className="btn btn--quiet" onClick={openExtend}>Extend…</button>
                   {canSwap && (
                     <button type="button" className="btn btn--quiet" onClick={openSwap}>Swap car…</button>
@@ -555,13 +565,13 @@ export function BookingDrawer({ bookingId, onClose, onChanged, extraSections = n
               <button type="button" className="btn btn--quiet" onClick={() => setShowExtend(false)} disabled={exBusy}>Cancel</button>
               <button
                 type="button"
-                className={RESERVE_MODE ? "btn btn--accent" : "btn btn--quiet"}
+                className={DESK_MODE ? "btn btn--accent" : "btn btn--quiet"}
                 disabled={exBusy || exDelta === null}
                 onClick={() => submitExtend("desk")}
               >
                 {exBusy ? "Saving…" : "Collected at desk"}
               </button>
-              {!RESERVE_MODE && (
+              {!DESK_MODE && (
                 <button
                   type="button"
                   className="btn btn--accent"

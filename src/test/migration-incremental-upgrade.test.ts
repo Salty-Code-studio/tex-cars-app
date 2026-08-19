@@ -6,7 +6,11 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 
 /**
- * Incremental-upgrade regression guard for the enum wave (0015/0016).
+ * Incremental-upgrade regression guard for the enum wave (0015/0016), plus
+ * every later migration this port added (the phase-2 migrate() call below
+ * always targets the full, current DRIZZLE_DIR, so a new migration is
+ * automatically exercised here the moment it lands - no per-migration edit
+ * needed unless, like 0024, it deserves its own positive assertion).
  *
  * Fresh-install CI applies EVERY migration in a single transaction, so a newly
  * ADDed enum value is usable in the same transaction that CREATEd its type — the
@@ -18,7 +22,13 @@ import { getDb } from "@/lib/db/client";
  * own transaction, against a type that was committed earlier. `ALTER TYPE ... ADD
  * VALUE` followed by USING that value in the same transaction is then rejected
  * with Postgres 55P04 "unsafe use of new value". This test reproduces that
- * populated-tenant path so the bug can never come back unnoticed.
+ * populated-tenant path so the bug can never come back unnoticed. 0024 (desk
+ * mode) has no such enum-surgery hazard (a brand-new enum and table, not an
+ * ADD VALUE on one already committed), but still gets its own read-after-write
+ * assertion below, both to prove it truly applies against a populated tenant
+ * and to pin the journal `when` remap this migration needed (Note 9(b)'s
+ * formula) actually took effect - a mis-remapped `when` would silently skip
+ * 0024 in phase 2, and `approval_requests` wouldn't exist to insert into.
  */
 
 const DRIZZLE_DIR = path.resolve(process.cwd(), "drizzle");
@@ -95,6 +105,25 @@ describe("incremental migration upgrade on a populated DB", () => {
         await db.execute(sql`SELECT "status"::text AS status FROM "bookings" WHERE "idempotency_key" = 'mig-key-1'`),
       );
       expect(after[0]!.status).toBe("picked_up");
+
+      // 0024 (desk-mode adoption, no enum-surgery hazard - a brand-new enum
+      // and table, not an ADD VALUE on one already committed) is the newest
+      // migration this phase-2 batch applies. Prove it actually works against
+      // the populated tenant, not just that migrate() didn't throw: insert an
+      // approval_requests row against the same pre-upgrade booking (the FK +
+      // the partial unique index + the default status all only exist as of
+      // 0024) and read it back.
+      const bookingRow = rows(
+        await db.execute(sql`SELECT "id" FROM "bookings" WHERE "idempotency_key" = 'mig-key-1'`),
+      );
+      await db.execute(sql`
+        INSERT INTO "approval_requests" ("booking_id", "token_hash", "expires_at")
+        VALUES (${bookingRow[0]!.id}::uuid, 'mig-token-hash', now() + interval '1 day')`);
+      const approval = rows(
+        await db.execute(sql`SELECT "status"::text AS status FROM "approval_requests" WHERE "booking_id" = ${bookingRow[0]!.id}::uuid`),
+      );
+      expect(approval).toHaveLength(1);
+      expect(approval[0]!.status).toBe("open");
     } finally {
       fs.rmSync(prefix, { recursive: true, force: true });
     }

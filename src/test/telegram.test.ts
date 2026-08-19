@@ -61,11 +61,15 @@ describe("sendOwnerTelegram", () => {
   });
 });
 
-describe("notifyNewBooking Telegram containment", () => {
-  it("a Telegram fetch failure never surfaces to the caller of sendOwnerTelegram(...).catch(...)", async () => {
-    // notifyNewBooking wraps the call as sendOwnerTelegram(...).catch(() => undefined),
-    // the same containment sendOwnerWhatsApp already uses. Exercise that exact
-    // shape directly: a rejected send must resolve to undefined, never throw.
+describe("sendOwnerTelegram containment shape", () => {
+  it("a Telegram fetch failure never surfaces through sendOwnerTelegram(...).catch(...)", async () => {
+    // No production call site remains: notifyNewBooking's bare ping was retired
+    // (desk-mode adoption wave; the approval broadcast is the Telegram surface
+    // for new bookings now, see PORT-LOG Note 16(e)), but the module stays
+    // exported for compliance/ops use. Any future caller must use the
+    // sendOwnerTelegram(...).catch(() => undefined) containment shape the
+    // WhatsApp channel's callers already use; pin that shape here: a rejected
+    // send must resolve to undefined, never throw.
     process.env.TELEGRAM_BOT_TOKEN = "test-bot-token";
     process.env.TELEGRAM_CHAT_ID = "12345";
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));

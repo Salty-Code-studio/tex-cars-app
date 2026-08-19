@@ -26,7 +26,9 @@ export async function GET(req: Request): Promise<NextResponse> {
   if (!env.CRON_SECRET || auth !== `Bearer ${env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const cancelled = await expireStaleHolds(30); // holds older than 30 min, unpaid
+  // expireStaleHolds() itself no-ops in desk mode (src/lib/payments/holds.ts) -
+  // one code path for the desk-mode gate, not duplicated here too.
+  const cancelled = await expireStaleHolds(30);
   const mediaPurged = await sweepInspectionMedia();
   const licensesPurged = await sweepDriverLicenses();
   logger.info("cron_expire_holds", { cancelled, mediaPurged, licensesPurged });
