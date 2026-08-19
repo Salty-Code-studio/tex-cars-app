@@ -81,9 +81,12 @@
     "SESSION_TTL_SECONDS": "86400",
     "SESSION_IDLE_TTL_SECONDS": "1800",
     "LOG_LEVEL": "info",
-    // Pay-at-desk reservation mode (no Stripe checkout). Must match: both keys
-    // stay in sync, enforced by src/env.ts at boot (fail-closed if they diverge).
-    "PAYMENT_MODE": "reserve",
-    "NEXT_PUBLIC_PAYMENT_MODE": "reserve"
+    // Desk mode (pay at pickup + Telegram approval workflow). Must match: both
+    // keys stay in sync, enforced by src/env.ts at boot (fail-closed if they
+    // diverge) and both must equal the Dockerfile's baked NEXT_PUBLIC value.
+    "PAYMENT_MODE": "desk",
+    "NEXT_PUBLIC_PAYMENT_MODE": "desk",
+    // The approval bot. Token + webhook secret are secrets via wrangler secret put.
+    "TELEGRAM_BOT_USERNAME": "texcarsbot"
   }
 }
