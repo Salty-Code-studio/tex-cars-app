@@ -1,7 +1,9 @@
 # Port Log: FleetDesk to Tex Cars parity port
 
 Companion to `docs/superpowers/plans/2026-08-18-fleetdesk-parity-port-v2.md` (control plan) and
-`docs/superpowers/plans/2026-07-27-wave-09-tex-port.md` (base playbook this plan amends).
+`docs/superpowers/plans/2026-07-27-wave-09-tex-port.md` (base playbook this plan amends). Also the
+commit ledger for `docs/superpowers/plans/2026-08-19-desk-mode-adoption.md` Task 1 (2026-08-19):
+the 31 `defer-task-8` rows below are that task's port list, now ported - see ledger Note 16.
 
 ## Setup
 
@@ -165,44 +167,44 @@ Test Files  42 passed (42)
 | 6e7bb14 | feat(admin): breakdown swap — reassign a booking to a replacement car | port (ported, Task 5 `b8ab220`; board conflict, reserve-mode evidence, see Note 15) |
 | a046f60 | feat(admin): day-zoom hour grid on the planning board | port (ported, Task 5 `5d8f553`; composes with confirm flow, see Note 15) |
 | d478dd4 | feat(ui): mobile + tablet adaptation across admin, booking and marketing | port (ported PARTIAL, Task 5 `14ba4ab`; marketing hunks excluded, no Tex `(marketing)` route, 2 brand-token fixes, see Note 15) |
-| 87e21bc | docs: desk mode + internal chat approval design spec | defer-task-8 |
-| b306a5a | docs: switch chat approval channel to Telegram (per-client bot, no router) | defer-task-8 |
-| 19ff400 | docs: implementation plan for desk mode + telegram approval | defer-task-8 |
-| 15b59cc | feat(env): PAYMENT_MODE=desk boots without Stripe, Telegram bot vars | defer-task-8 |
-| c0cf78b | docs(plan): strip em-dashes from code snippets (Mo's copy rule) | defer-task-8 |
-| ceeda85 | fix(env): drop em-dash from telegram comment | defer-task-8 |
-| f9b2541 | feat(desk-mode): bookings without a payment provider, guarded checkout and cron | defer-task-8 |
-| bcd177c | test(desk-mode): cover stripe webhook refusal | defer-task-8 |
-| 82888ff | feat(schema): approval_requests table + approval manager settings | defer-task-8 |
-| e48cb57 | feat(approval): signed single-use tokens for email decision links | defer-task-8 |
-| 2d3ff7a | test(approval): cover short-mac length-mismatch branch in verify | defer-task-8 |
-| 52f0bc1 | feat(approval): booking summary message with live fleet check line | defer-task-8 |
-| 042b2f0 | test(approval): pin fleet-line status, class, cancelled and buffer semantics | defer-task-8 |
-| 93342ac | feat(approval): telegram bot client + pure update parser | defer-task-8 |
-| de8dc6c | fix(approval): explicit empty keyboard on edit + /start word boundary | defer-task-8 |
-| 6b159c6 | feat(approval): request creation + first-tap-wins decision core | defer-task-8 |
-| 3e64898 | fix(approval): harden request creation ordering + pin guarded flip and hash check | defer-task-8 |
-| 84a8e27 | feat(approval): telegram webhook with invite linking, taps, in-place edits | defer-task-8 |
-| f710f2a | test(approval): cover /start deny path + log swallowed answer failures | defer-task-8 |
-| 9ec7171 | feat(approval): email decision endpoints + scanner-safe review page | defer-task-8 |
-| 1313d85 | sec(http): redact path-embedded approval tokens from request logs | defer-task-8 |
-| f739dfa | test(approval): direct scanner-safety assertions on GET summary | defer-task-8 |
-| ffa9733 | feat(approval): admin confirm action + hourly reminder cron with janitor | defer-task-8 |
-| 5fd4b21 | feat(desk-mode): wizard + confirmation copy, admin confirm button, managers settings UI | defer-task-8 |
-| c58b0a5 | fix(desk-mode): gate admin confirm to desk deployments + truthful desk policy copy | defer-task-8 |
-| d6ab31e | docs: desk mode + telegram approval rollout runbook | defer-task-8 |
-| a3d06a0 | fix(desk-mode): final-review must-fixes | defer-task-8 |
-| 755ec01 | fix(approval): final-review hardening wave | defer-task-8 |
-| 158c24a | docs: runbook corrections from final review | defer-task-8 |
-| 7813bcc | docs: note first-tap-wins re-link path in runbook | defer-task-8 |
-| c96405a | fix(ops): daily approval-reminders cron for Vercel Hobby, hourly on Pro documented | defer-task-8 |
+| 87e21bc | docs: desk mode + internal chat approval design spec | port (ported, Task 1 `959b7d3`) |
+| b306a5a | docs: switch chat approval channel to Telegram (per-client bot, no router) | port (ported, Task 1 `1a0cf42`) |
+| 19ff400 | docs: implementation plan for desk mode + telegram approval | port (ported, Task 1 `b284d74`) |
+| 15b59cc | feat(env): PAYMENT_MODE=desk boots without Stripe, Telegram bot vars | port (ported, Task 1 `366e9b5`; PAYMENT_MODE enum reconciliation, see Note 16) |
+| c0cf78b | docs(plan): strip em-dashes from code snippets (Mo's copy rule) | port (ported, Task 1 `0043771`) |
+| ceeda85 | fix(env): drop em-dash from telegram comment | port (ported, Task 1 `e44d746`; verified no-op against `366e9b5`'s rewrite, see Note 16) |
+| f9b2541 | feat(desk-mode): bookings without a payment provider, guarded checkout and cron | port (ported, Task 1 `0c772e6`; 2 real bugs fixed, see Note 16) |
+| bcd177c | test(desk-mode): cover stripe webhook refusal | port (ported, Task 1 `4342735`) |
+| 82888ff | feat(schema): approval_requests table + approval manager settings | port (ported, Task 1 `4df56c8`; migration 0024, see Note 16) |
+| e48cb57 | feat(approval): signed single-use tokens for email decision links | port (ported, Task 1 `537fe74`; HMAC domain string rebrand, see Note 16) |
+| 2d3ff7a | test(approval): cover short-mac length-mismatch branch in verify | port (ported, Task 1 `75d1942`) |
+| 52f0bc1 | feat(approval): booking summary message with live fleet check line | port (ported, Task 1 `ba292cd`) |
+| 042b2f0 | test(approval): pin fleet-line status, class, cancelled and buffer semantics | port (ported, Task 1 `bf185ee`) |
+| 93342ac | feat(approval): telegram bot client + pure update parser | port (ported, Task 1 `eeae11c`) |
+| de8dc6c | fix(approval): explicit empty keyboard on edit + /start word boundary | port (ported, Task 1 `0496c21`) |
+| 6b159c6 | feat(approval): request creation + first-tap-wins decision core | port (ported, Task 1 `f29c12e`; templates.ts conflict, see Note 16) |
+| 3e64898 | fix(approval): harden request creation ordering + pin guarded flip and hash check | port (ported, Task 1 `602b605`) |
+| 84a8e27 | feat(approval): telegram webhook with invite linking, taps, in-place edits | port (ported, Task 1 `b1a4e59`; package.json conflict, dropped FD's orphaned demo:admin script, see Note 16) |
+| f710f2a | test(approval): cover /start deny path + log swallowed answer failures | port (ported, Task 1 `e340a60`) |
+| 9ec7171 | feat(approval): email decision endpoints + scanner-safe review page | port (ported, Task 1 `86662d8`) |
+| 1313d85 | sec(http): redact path-embedded approval tokens from request logs | port (ported, Task 1 `ef4be75`) |
+| f739dfa | test(approval): direct scanner-safety assertions on GET summary | port (ported, Task 1 `8bf283b`) |
+| ffa9733 | feat(approval): admin confirm action + hourly reminder cron with janitor | port (ported, Task 1 `33778c7`; THE admin-confirm merge point, retired old confirmBookingAdmin, see Note 16) |
+| 5fd4b21 | feat(desk-mode): wizard + confirmation copy, admin confirm button, managers settings UI | port (ported, Task 1 `ef4f3e5`; RESERVE_MODE/paymentMode architecture reconciliation across 3 files + a silent-duplicate merge bug, see Note 16) |
+| c58b0a5 | fix(desk-mode): gate admin confirm to desk deployments + truthful desk policy copy | port (ported, Task 1 `564915b`; same reconciliation recurring, test file rewritten to all-dynamic-imports, see Note 16) |
+| d6ab31e | docs: desk mode + telegram approval rollout runbook | port (ported, Task 1 `c3628f0`; .env.example silent-duplicate PAYMENT_MODE bug, see Note 16) |
+| a3d06a0 | fix(desk-mode): final-review must-fixes | port (ported, Task 1 `b2d13a7`; retired notifyReservationConfirmed/reservationConfirmedEmail, see Note 16) |
+| 755ec01 | fix(approval): final-review hardening wave | port (ported, Task 1 `c8c5ec4`) |
+| 158c24a | docs: runbook corrections from final review | port (ported, Task 1 `89cb69f`; one FleetDesk domain fixed in an example block) |
+| 7813bcc | docs: note first-tap-wins re-link path in runbook | port (ported, Task 1 `152703d`) |
+| c96405a | fix(ops): daily approval-reminders cron for Vercel Hobby, hourly on Pro documented | port (ported PARTIAL, Task 1 `a065578`; Vercel-Hobby daily downgrade rejected, Tex stays hourly on Cloudflare, see Note 16) |
 
 ## Totals
 
 - Total commits: 160
-- `port`: 118 (one flagged `port (danger)`)
+- `port`: 149 (one flagged `port (danger)`, one flagged `port PARTIAL`, all 31 former `defer-task-8` rows now ported - see Task 1, 2026-08-19)
 - `skip`: 11
-- `defer-task-8`: 31
+- `defer-task-8`: 0 (closed out by Task 1, desk-mode adoption wave, 2026-08-19)
 - `?`: 0
 
 ## Notes
@@ -274,6 +276,15 @@ Test Files  42 passed (42)
     (g) **Em-dash/double-hyphen sweep, whole task.** Found and fixed 30 real hits across 16 files during the per-commit ports (both self-authored merge-resolution prose and carried-over FD comments/docblocks/test descriptions, matching the wave 06/08 precedent that both classes get fixed). A final python sweep of the full `git diff a55b64b..HEAD` (added lines only) found exactly 4 remaining string matches, all confirmed non-issues: two are the pre-existing BEM-style `pl-bar--${state}`/`pl-block--${type}` className double-hyphens (already used identically elsewhere in `page.tsx` before this task touched it), two are `expect(name).not.toContain("—")` assertions in `payments-checkout-guard.test.ts` testing FOR the character's absence (the literal is intentional, per the Note 13(h)/14(h) precedent). Zero genuine prose dashes remain.
     (h) **No new migrations.** `drizzle/meta/_journal.json` stayed at 24 entries (idx 0-23) throughout; none of the 27 ported commits touch `drizzle/`. The MIGRATION RULE's when-remap formula was not needed this task.
     (i) **Checkpoint gates.** Three full-suite + `npx tsc --noEmit` + migration-smoke checkpoints, one after the fix-loop range (474 tests / 85 files), one after swap + hour-grid (489 tests / 87 files), one after the mobile pass (489 tests / 87 files, unchanged since `d478dd4` added no new test file). All three tsc-clean, all three migration-smoke-clean. Final `grep -rni fleetdesk src/` after all 27 commits returns only pre-existing test-fixture `@fleetdesk.app` emails in six test files untouched by this task (the Note 14(g) convention), no new hits.
+
+16. **Task 1 (2026-08-19, desk-mode adoption wave): the 31-commit defer-task-8 lineage ported, reserve->desk retired.** Full detail, per-commit conflict resolutions, the reserve-site inventory, migration/journal evidence, and self-review in `.superpowers/sdd/task-d1-report.md`. Summary below; ledger rows above carry the per-commit hash and a one-line pointer back here.
+    (a) **PAYMENT_MODE enum rename, one code path.** `src/env.ts`'s enum is now `stripe | desk` (kept Tex's `stripe` literal, not FD's own `online`); `reserve` fails closed at boot with a message naming the rename (checked before the zod parse, so it reads clearly instead of a generic invalid-enum error). Reserve-site inventory (grepped at task start, all resolved to the one `DESK_MODE`/`isDeskMode` pattern): `lib/payments/checkout.ts` (checkout 409 + extension guard), `lib/payments/holds.ts` (holds no-op), `lib/admin/inspections.ts` + the check-in wizard page (desk-override copy, server and client), `lib/payments/stripe-client.ts` (guard comment), `app/(public)/book/page.tsx` (wizard early-return + review-step copy, 15 sites), `app/(public)/book/confirmation/page.tsx` (both branches), `app/(public)/account/page.tsx` (status label), `app/admin/(shell)/booking-drawer.tsx` (Confirm gate + extend-modal payment choice). `NEXT_PUBLIC_PAYMENT_MODE` kept exactly as Tex already had it (build-time baked into the client bundle, per the desk-vs-reserve decision memo section 5) rather than adopting FD's own dynamically-fetched `/api/booking-config` `paymentMode` state, which auto-merged in cleanly at first (`5fd4b21`) and then again when a later commit (`c58b0a5`) reintroduced it after each fix - removed both times, documented inline in the affected files.
+    (b) **The admin-Confirm merge (`ffa9733`).** Tex's own `confirmBookingAdmin` (`src/lib/admin/move-booking.ts`, a plain atomic conditional `pending->confirmed` UPDATE) is retired; FD's `src/lib/admin/confirm-booking.ts` is a strict superset (same atomic UPDATE as its fallback branch, plus a first branch that routes through `applyDecision`, the same first-tap-wins funnel a Telegram tap or email link uses, when an open approval request exists) and is now the only code path. The confirm route's roles widened from owner-only to `["owner","staff"]` (FD's own deliberate design, not a port defect); a later commit (`c58b0a5`) added a desk-mode-only 404 gate on the same route (online deployments never reach it, matching the Stripe-webhook precedent). `notifyReservationConfirmed`/`reservationConfirmedEmail` (Tex-only, deliberately silent about payment) retired in `a3d06a0` once FD's own fix gave `notifyBookingConfirmed`/`bookingConfirmedEmail` a real `paid` boolean keyed on a succeeded-payment-row lookup (not on PAYMENT_MODE) - closing the exact "your payment came through" bug a desk-mode confirmation would otherwise have shown, and making the Tex-only surface fully redundant rather than a second code path running alongside it.
+    (c) **Migration 0024.** FD's exact filename kept (`drizzle/0024_magenta_captain_midlands.sql`); no 55P04 hazard (brand-new enum + table, no `ADD VALUE` on a type already committed). Journal idx 24 `when` remapped per the binding formula: `1786970199527 + (1786968554247 - 1785176040444) = 1788762713330`, strictly greater than idx 23's `1787019237155`. Snapshot reconciled with the by-now-established swap (byte-identical `admin_reset_tokens` block sourced from `0023_snapshot.json`, `prevId` needed no fix). `migration-incremental-upgrade.test.ts` extended with a concrete new assertion (an `approval_requests` insert against the phase-1-committed booking, not just an implicit re-run) - verified load-bearing both directions: reverting to FD's raw `when` reproduces `42P01` (relation does not exist, the silent-skip hazard live) on both the new assertion and the existing static journal-monotonicity check.
+    (d) **CRON RULE, the Cloudflare side.** `worker/index.ts` CONTAINER_ENV_KEYS gained `TELEGRAM_BOT_USERNAME`/`TELEGRAM_WEBHOOK_SECRET` (TOKEN/CHAT_ID already forwarded); its `scheduled()` jobs map gained `"0 * * * *" -> /api/cron/approval-reminders`; `wrangler.jsonc`'s `triggers.crons` gained the same entry. Hourly, deliberately: the ledger's own `c96405a` downgrades this same cron to daily on FD's Vercel deployment because Vercel's Hobby plan caps cron frequency; Tex runs on Cloudflare Workers (already running a 15-minute `expire-holds` cron on the same account, so hourly is already affordable) and has no such limit, so that specific commit's vercel.json/LAUNCH.md changes were NOT adopted as written - `c96405a` is marked `port PARTIAL` in the ledger for this reason, the only other row besides the pre-existing `port (danger)` flag to carry a qualifier. `wrangler.jsonc`'s `vars.PAYMENT_MODE`/`NEXT_PUBLIC_PAYMENT_MODE` deliberately left at `reserve` - that literal flip to `desk`, and the matching Dockerfile bake, are Task 6's job per the Global Constraints, not this task's; nothing in Task 1 deploys or touches prod config.
+    (e) **sendOwnerTelegram retirement.** `notifyNewBooking` no longer calls `sendOwnerTelegram` (the new desk-mode approval broadcast replaces it for the one thing it's for - flagging a new booking to the people who can act on it); the module itself stays (`src/lib/notify.ts`, untouched), documented as kept for potential compliance/ops use per the Global Constraints. `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` (the simple-ping vars) and `TELEGRAM_BOT_USERNAME`/`TELEGRAM_WEBHOOK_SECRET` (the approval-bot vars) now share one bot/token, resolving the ambiguity the desk-vs-reserve decision memo's env-mapping table (section 4) flagged but deliberately left open.
+    (f) **Two silent-duplicate merge bugs caught, not just the usual conflict markers.** `booking-drawer.tsx`'s `confirmBusy` state hook AND its entire Confirm button (FD's new `canConfirm`-gated "Confirm booking" alongside Tex's old inline `b.status==="pending"`-gated "Confirm reservation", both calling the same `doConfirm()`) were silently duplicated by a clean 3-way auto-merge with zero conflict markers - caught by `tsc`'s TS2451 redeclaration error and by reading the rendered Actions row, not by the merge tooling. `.env.example` similarly duplicated `PAYMENT_MODE` with two different literal sets back to back. Both classes of bug are a real risk specifically because cherry-pick's line-based merge cannot detect "these two hunks add semantically identical things at different anchor points" - worth a standing reminder for any future port through this same lineage.
+    (g) **Gates.** Full suite 102 files / 548 tests green; `npx tsc --noEmit` clean throughout (every commit checkpointed, not just wave boundaries, given the auth/payment blast radius); `npm run lint` clean (same 3 pre-existing warnings the whole port has carried since wave 06/07/08, no new ones); migration-smoke clean; `rm -rf .next && npm run build` succeeds with every new route present. Repo-wide sweep: zero `RESERVE_MODE` references, zero bare `"reserve"` PAYMENT_MODE literals outside `env.ts`'s retirement-error check and the two tests that verify it, zero FleetDesk strings outside already-accepted inert test fixtures (`pdf-report.test.ts`/`pdf-contract.test.ts`, pre-existing) and historic docs/plan files, zero license/DOB fields anywhere in the approval message or Telegram/email payloads (verified by direct code reading of `buildApprovalMessage`, not just grep).
 
 ## Task 9 runbook items (carried forward, do not execute now)
 
