@@ -12,3 +12,4 @@ export * from "./logs";
 export * from "./sessions";
 export * from "./auth-tokens";
 export * from "./notifications";
+export * from "./vehicle-notes";
