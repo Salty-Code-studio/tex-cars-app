@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { formatDateTime } from "@/lib/time/format";
 import { siteConfig } from "@/lib/site-config";
 
-const RESERVE_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "reserve";
+const DESK_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "desk";
 
 interface Booking {
   id: string;
@@ -24,9 +24,10 @@ const WIZARD_STORAGE_KEY = "book-wizard-v1";
 // Stripe redirect. Rather than give up after a few seconds, poll with
 // backoff: 4 quick pings, then 6 a bit slower, then 7 patient ones
 // (~59.5s total) before handing control to the "Check again" button.
-// Reserve mode has no webhook (the owner confirms manually, see the
-// RESERVE_MODE pending branch below), but polling still harmlessly picks up
-// a confirm that happens to land while this page is open.
+// Desk mode has no webhook (a manager confirms via Telegram, email, or the
+// admin Confirm button, see the DESK_MODE pending branch below), but polling
+// still harmlessly picks up a confirm that happens to land while this page
+// is open.
 const BACKOFF_MS = [
   ...Array(4).fill(1500),
   ...Array(6).fill(3000),
@@ -96,14 +97,14 @@ export default function ConfirmationPage() {
     <div className="wrap confirm">
       <div className="card">
         <div className="big" aria-hidden="true">{confirmed ? "✅" : "🚗"}</div>
-        <h1>{confirmed ? "Booking confirmed" : "Your car is reserved"}</h1>
+        <h1>{confirmed ? "Booking confirmed" : DESK_MODE ? "Booking received" : "Your car is reserved"}</h1>
         {loading ? (
           <p className="note">Checking your booking…</p>
         ) : !booking ? (
           <p>We&apos;ve received your request. Our team will be in touch shortly.</p>
         ) : confirmed ? (
-          RESERVE_MODE ? (
-            <p>Reservation confirmed. See you at pickup!</p>
+          DESK_MODE ? (
+            <p>Your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is confirmed. See you at pickup; you pay at the desk.</p>
           ) : (
             <>
               <p>Payment received and your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is confirmed.
@@ -113,8 +114,8 @@ export default function ConfirmationPage() {
               )}
             </>
           )
-        ) : RESERVE_MODE ? (
-          <p>Reservation received! Tex Cars will confirm your reservation shortly. You pay the deposit at pickup.</p>
+        ) : DESK_MODE ? (
+          <p>Your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is in. Our team will confirm it shortly and you pay at pickup. A confirmation email is on its way once it is approved.</p>
         ) : (
           <>
             <p>Your booking for {formatDateTime(booking.startAt)} to {formatDateTime(booking.endAt)} is held. If you just paid, the
