@@ -7,7 +7,7 @@ import { getDb } from "@/lib/db/client";
 import { createSession } from "@/lib/auth/sessions";
 import { applySessionCookies } from "@/lib/auth/session-cookies";
 import { trustedClientIp } from "@/lib/http/client-ip";
-import { findDemoAdmin } from "@/lib/auth/demo";
+import { provisionDemoAdmin } from "@/lib/auth/demo";
 import { audit } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -17,19 +17,24 @@ export const runtime = "nodejs";
  *
  * Gated ENTIRELY behind DEMO_MODE: when it is off, the route 404s as if it does
  * not exist, so a real deployment never exposes a password/MFA-free admin door.
- * When on, it mints a FULL (non-mfaPending) admin session for the seeded demo
- * admin (mfaEnabled=true, role owner) so a viewer can explore the ops dashboard
- * with sample data. The real login + MFA path (/api/admin/auth/login and
- * /mfa/verify) is deliberately left untouched.
+ * When on, it SELF-PROVISIONS (idempotently) the seeded demo admin
+ * (mfaEnabled=true, role owner) and mints a FULL (non-mfaPending) session for it,
+ * so a viewer can explore the ops dashboard with sample data on the very first
+ * hit, with no separate out-of-band seed step required. The real login + MFA
+ * path (/api/admin/auth/login and /mfa/verify) is deliberately left untouched.
+ *
+ * Task 7 gate fix (2026-08): previously called findDemoAdmin, which only looked
+ * the row up. Nothing in scripts/ or src/ ever called provisionDemoAdmin, so on
+ * any fresh environment (fresh clone, fresh prod deploy with DEMO_MODE=true) this
+ * route 404'd forever — the demo door was unreachable. Covering test:
+ * src/test/admin-demo-login.test.ts.
  */
 export const POST = withRoute(async (req) => {
   if (!env.DEMO_MODE) throw Errors.notFound();
   await enforceRateLimit(req, "auth", "admin-demo-login");
 
   const db = await getDb();
-  const admin = await findDemoAdmin(db);
-  // Not provisioned — stay invisible rather than 500.
-  if (!admin || !admin.mfaEnabled) throw Errors.notFound();
+  const admin = await provisionDemoAdmin(db);
 
   const created = await createSession({
     subjectType: "admin",
