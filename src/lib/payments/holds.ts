@@ -11,10 +11,11 @@ import { getDb } from "@/lib/db/client";
 import { bookings, payments } from "@/lib/db/schema";
 
 export async function expireStaleHolds(ttlMinutes: number, now = new Date()): Promise<number> {
-  // In reserve mode "pending" means awaiting the owner's manual confirmation,
-  // not an unpaid Stripe hold — there is no payment to time out, so this must
-  // never auto-cancel a booking. No-op before touching the DB.
-  if (env.PAYMENT_MODE === "reserve") return 0;
+  // In desk mode "pending" means awaiting a manager's confirmation (Telegram,
+  // email, or the admin Confirm button), not an unpaid Stripe hold — there is
+  // no payment to time out, so this must never auto-cancel a booking. No-op
+  // before touching the DB.
+  if (env.PAYMENT_MODE === "desk") return 0;
 
   const db = await getDb();
   const cutoff = new Date(now.getTime() - ttlMinutes * 60_000);

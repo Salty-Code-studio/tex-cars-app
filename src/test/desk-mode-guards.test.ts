@@ -6,11 +6,13 @@ import { atAruba } from "@/lib/time/format";
 import { eq } from "drizzle-orm";
 
 /**
- * PAYMENT_MODE env shape + reserve-mode guards on the payments modules.
- * Follows the env-override style in env-validation.test.ts (snapshot + hard
- * restore process.env, vi.resetModules() before every dynamic re-import of
- * @/env or anything that imports it) and the fixture style in
- * payments-checkout-guard.test.ts / payments-holds.test.ts.
+ * PAYMENT_MODE env shape + desk-mode guards on the payments modules. Renamed
+ * from "reserve" to "desk" on 2026-08-19 (desk-mode adoption); see src/env.ts
+ * for the boot-time error covering the old literal. Follows the env-override
+ * style in env-validation.test.ts (snapshot + hard restore process.env,
+ * vi.resetModules() before every dynamic re-import of @/env or anything that
+ * imports it) and the fixture style in payments-checkout-guard.test.ts /
+ * payments-holds.test.ts.
  */
 
 const ORIGINAL = { ...process.env };
@@ -28,7 +30,7 @@ beforeAll(async () => {
   db = await getDb();
   await runMigrations();
   const [v] = await db.insert(vehicles).values({
-    slug: "rm-car", plate: "PL-rm-car", class: "SUV", name: "Reserve Mode Car", seats: 5, transmission: "Automatic",
+    slug: "rm-car", plate: "PL-rm-car", class: "SUV", name: "Desk Mode Car", seats: 5, transmission: "Automatic",
     doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000, depositCents: 25000,
   }).returning();
   const [c] = await db.insert(customers).values({ email: "rm@test.com" }).returning();
@@ -39,13 +41,13 @@ describe("PAYMENT_MODE env", () => {
   beforeEach(() => vi.resetModules());
   afterEach(restoreEnv);
 
-  it("reserve mode validates WITHOUT stripe keys", async () => {
-    process.env.PAYMENT_MODE = "reserve";
-    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
+  it("desk mode validates WITHOUT stripe keys", async () => {
+    process.env.PAYMENT_MODE = "desk";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "desk";
     delete process.env.STRIPE_SECRET_KEY;
     delete process.env.STRIPE_WEBHOOK_SECRET;
     const { env } = await import("@/env");
-    expect(env.PAYMENT_MODE).toBe("reserve");
+    expect(env.PAYMENT_MODE).toBe("desk");
     expect(env.STRIPE_SECRET_KEY).toBe("");
     expect(env.STRIPE_WEBHOOK_SECRET).toBe("");
   });
@@ -71,8 +73,8 @@ describe("PAYMENT_MODE env", () => {
     expect(env.PAYMENT_MODE).toBe("stripe");
   });
 
-  it("rejects a present-but-malformed STRIPE_SECRET_KEY even in reserve mode", async () => {
-    process.env.PAYMENT_MODE = "reserve";
+  it("rejects a present-but-malformed STRIPE_SECRET_KEY even in desk mode", async () => {
+    process.env.PAYMENT_MODE = "desk";
     process.env.STRIPE_SECRET_KEY = "not-a-real-key";
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -85,7 +87,7 @@ describe("PAYMENT_MODE env", () => {
   });
 
   it("rejects PAYMENT_MODE and NEXT_PUBLIC_PAYMENT_MODE when they disagree", async () => {
-    process.env.PAYMENT_MODE = "reserve";
+    process.env.PAYMENT_MODE = "desk";
     process.env.NEXT_PUBLIC_PAYMENT_MODE = "stripe";
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -96,15 +98,25 @@ describe("PAYMENT_MODE env", () => {
       spy.mockRestore();
     }
   });
+
+  it("PAYMENT_MODE=reserve fails closed naming the desk rename, not a generic enum error", async () => {
+    process.env.PAYMENT_MODE = "reserve";
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(import("@/env")).rejects.toThrow(/renamed to "desk"/);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
-describe("reserve-mode guards", () => {
+describe("desk-mode guards", () => {
   beforeEach(() => vi.resetModules());
   afterEach(restoreEnv);
 
-  it("createBookingCheckout throws conflict in reserve mode", async () => {
-    process.env.PAYMENT_MODE = "reserve";
-    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
+  it("createBookingCheckout throws conflict in desk mode", async () => {
+    process.env.PAYMENT_MODE = "desk";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "desk";
     const { createBookingCheckout } = await import("@/lib/payments/checkout");
     try {
       await createBookingCheckout("00000000-0000-0000-0000-000000000000", "http://localhost");
@@ -116,9 +128,9 @@ describe("reserve-mode guards", () => {
     }
   });
 
-  it("createExtensionCheckout throws conflict in reserve mode", async () => {
-    process.env.PAYMENT_MODE = "reserve";
-    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
+  it("createExtensionCheckout throws conflict in desk mode", async () => {
+    process.env.PAYMENT_MODE = "desk";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "desk";
     const { createExtensionCheckout } = await import("@/lib/payments/checkout");
     try {
       // The guard fires before the booking argument, the DB, or Stripe is
@@ -133,7 +145,7 @@ describe("reserve-mode guards", () => {
     }
   });
 
-  it("expireStaleHolds returns 0 and cancels nothing in reserve mode", async () => {
+  it("expireStaleHolds returns 0 and cancels nothing in desk mode", async () => {
     const old = new Date(Date.now() - 60 * 60_000); // 60 min ago, well past any TTL
     const [b] = await db.insert(bookings).values({
       vehicleId, customerId, startAt: atAruba("2029-01-01", "09:00"), endAt: atAruba("2029-01-05", "09:00"), bufferEndAt: atAruba("2029-01-06", "09:00"),
@@ -141,21 +153,22 @@ describe("reserve-mode guards", () => {
       acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: "rm-stale-hold", createdAt: old,
     }).returning();
 
-    process.env.PAYMENT_MODE = "reserve";
-    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
+    process.env.PAYMENT_MODE = "desk";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "desk";
     const { expireStaleHolds } = await import("@/lib/payments/holds");
     const n = await expireStaleHolds(30);
     expect(n).toBe(0);
 
     const [after] = await db.select().from(bookings).where(eq(bookings.id, b!.id));
-    expect(after!.status).toBe("pending"); // untouched — reserve mode never auto-cancels
+    expect(after!.status).toBe("pending"); // untouched — desk mode never auto-cancels
   });
 
-  it("completePickup's desk-override message respects reserve mode (never says 'paid')", async () => {
-    // A pending reserve-mode booking was never going to be "paid" online in
-    // the first place (the owner confirms it by hand); the desk-override
-    // gate must say "not confirmed", not "not paid", or staff get a false
-    // signal about why the wizard is refusing to proceed.
+  it("completePickup's desk-override message respects desk mode (never says 'paid')", async () => {
+    // A pending desk-mode booking was never going to be "paid" online in the
+    // first place (a manager confirms it via Telegram, email, or the admin
+    // Confirm button); the desk-override gate must say "not confirmed", not
+    // "not paid", or staff get a false signal about why the wizard is
+    // refusing to proceed.
     //
     // completePickup needs a real DB read to reach that guard, and DATABASE_URL
     // is pglite://memory (src/test/setup.ts) -- vi.resetModules() gives
@@ -164,8 +177,8 @@ describe("reserve-mode guards", () => {
     // fixture through the freshly-reset module graph instead of reusing the
     // outer vehicleId/customerId/db (matching every other test file's own
     // beforeAll pattern, just inlined here since only this one case needs it).
-    process.env.PAYMENT_MODE = "reserve";
-    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
+    process.env.PAYMENT_MODE = "desk";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "desk";
     const { getDb: freshGetDb } = await import("@/lib/db/client");
     const { runMigrations: freshRunMigrations } = await import("@/lib/db/migrate");
     const { vehicles: freshVehicles, customers: freshCustomers, bookings: freshBookings } = await import("@/lib/db/schema");
@@ -174,7 +187,7 @@ describe("reserve-mode guards", () => {
     const freshDb = await freshGetDb();
     await freshRunMigrations();
     const [v] = await freshDb.insert(freshVehicles).values({
-      slug: "rm-pickup-car", plate: "PL-rm-pickup", class: "SUV", name: "Reserve Pickup Car", seats: 5,
+      slug: "rm-pickup-car", plate: "PL-rm-pickup", class: "SUV", name: "Desk Pickup Car", seats: 5,
       transmission: "Automatic", doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000, depositCents: 25000,
     }).returning();
     const [c] = await freshDb.insert(freshCustomers).values({ email: "rm-pickup@test.com" }).returning();

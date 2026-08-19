@@ -109,15 +109,20 @@ const EnvSchema = z
         "DATABASE_MIGRATION_URL must be a postgres:// URL or empty",
       ),
 
-    // Booking payment mode: "stripe" = online checkout (default), "reserve" =
-    // pay-at-desk reservations (no Stripe needed; owner confirms manually).
-    PAYMENT_MODE: z.enum(["stripe", "reserve"]).default("stripe"),
-    NEXT_PUBLIC_PAYMENT_MODE: z.enum(["stripe", "reserve"]).default("stripe"),
+    // Booking payment mode: "stripe" = online checkout (default), "desk" =
+    // pay-at-desk bookings (no Stripe needed; a manager confirms via Telegram
+    // buttons, an email decision link, or the admin Confirm button, then the
+    // customer pays at pickup). Renamed from "reserve" on 2026-08-19 when the
+    // desk-mode adoption wave replaced the single owner-confirm gate with the
+    // full approval engine below; loadEnv() fails closed with a message
+    // naming the rename if the old literal is ever set again.
+    PAYMENT_MODE: z.enum(["stripe", "desk"]).default("stripe"),
+    NEXT_PUBLIC_PAYMENT_MODE: z.enum(["stripe", "desk"]).default("stripe"),
 
     // Stripe (payments). Prefer a RESTRICTED key (rk_) over a secret key (sk_).
     // OPTIONAL at the field level — required-and-format-valid ONLY when
     // PAYMENT_MODE="stripe" (enforced below by the schema-level superRefine).
-    // In reserve mode the keys may be absent, but if present they must still be
+    // In desk mode the keys may be absent, but if present they must still be
     // format-valid (never silently accept a malformed key either way).
     STRIPE_SECRET_KEY: z
       .string()
@@ -219,9 +224,22 @@ const EnvSchema = z
     WHATSAPP_PHONE_ID: z.string().optional().default(""),
     WHATSAPP_OWNER_TO: z.string().optional().default(""),
 
-    // Owner Telegram alerts. Dormant until BOTH are set (same contract as WhatsApp).
+    // Telegram. One bot serves two features on the same token:
+    //   - sendOwnerTelegram() (src/lib/notify.ts): a simple outbound-only ping,
+    //     dormant until TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID are both set. Kept
+    //     for potential compliance/ops use even though notifyNewBooking no
+    //     longer calls it (the desk-mode approval broadcast below replaced it).
+    //   - the desk-mode approval bot (src/lib/approval/telegram.ts): an inbound
+    //     webhook a manager taps Confirm/Decline from. OPTIONAL, one bot PER
+    //     DEPLOYMENT (BotFather); with TELEGRAM_BOT_USERNAME + WEBHOOK_SECRET
+    //     also set, managers get Confirm/Decline pings, otherwise that channel
+    //     is dormant and email decision links still work. WEBHOOK_SECRET is OUR
+    //     random secret; Telegram echoes it back in the
+    //     X-Telegram-Bot-Api-Secret-Token header so we can trust the webhook.
     TELEGRAM_BOT_TOKEN: z.string().optional().default(""),
     TELEGRAM_CHAT_ID: z.string().optional().default(""),
+    TELEGRAM_BOT_USERNAME: z.string().optional().default(""),
+    TELEGRAM_WEBHOOK_SECRET: z.string().optional().default(""),
 
     // Object storage for inspection photos, licence copies, signatures, and
     // contract PDFs. 'local' writes under LOCAL_STORAGE_DIR (dev/test);
@@ -283,6 +301,23 @@ const EnvSchema = z
 export type Env = z.infer<typeof EnvSchema>;
 
 function loadEnv(): Env {
+  // PAYMENT_MODE="reserve" / NEXT_PUBLIC_PAYMENT_MODE="reserve" were renamed
+  // to "desk" on 2026-08-19 (desk-mode adoption: the pay-at-desk flow gained
+  // Telegram/email manager approvals behind the same "no online payment,
+  // customer pays at pickup" behavior). Checked BEFORE the schema parse, and
+  // reported with a message that NAMES the rename, because a boot failure
+  // here is almost certainly a stale .env carried over from before the
+  // rename rather than a typo — the generic "invalid enum value" zod would
+  // otherwise produce doesn't say what to change it to.
+  for (const name of ["PAYMENT_MODE", "NEXT_PUBLIC_PAYMENT_MODE"] as const) {
+    if (process.env[name] === "reserve") {
+      const message = `${name}="reserve" was renamed to "desk" on 2026-08-19 - update your environment to ${name}=desk.`;
+      // eslint-disable-next-line no-console -- boot-time fatal; logger may not be ready.
+      console.error(`\n${message}\n`);
+      throw new Error(message);
+    }
+  }
+
   const parsed = EnvSchema.safeParse(process.env);
   if (!parsed.success) {
     // Print variable NAMES + messages, never values. Then fail closed.
@@ -299,6 +334,7 @@ function loadEnv(): Env {
 export const env: Readonly<Env> = Object.freeze(loadEnv());
 
 export const isProd = env.NODE_ENV === "production";
+export const isDeskMode = env.PAYMENT_MODE === "desk";
 
 // Boot warning: in production without a trusted IP source (TRUST_PROXY) AND
 // without a shared Redis store, the rate limiter falls back to a best-effort

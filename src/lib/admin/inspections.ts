@@ -217,10 +217,11 @@ export async function completePickup(
     const [booking] = await tx.select().from(bookings).where(eq(bookings.id, bookingId)).for("update");
     if (!booking) throw Errors.notFound("Booking not found");
     if (booking.status === "pending" && !opts.overrideNote?.trim()) {
-      // In reserve mode a pending booking was never going to be "paid" online
-      // in the first place (the owner confirms it by hand); the accurate
-      // reason is that it has not been confirmed yet, not that it is unpaid.
-      const reason = env.PAYMENT_MODE === "reserve"
+      // In desk mode a pending booking was never going to be "paid" online in
+      // the first place (a manager confirms it via Telegram, email, or the
+      // admin Confirm button); the accurate reason is that it has not been
+      // confirmed yet, not that it is unpaid.
+      const reason = env.PAYMENT_MODE === "desk"
         ? "This booking has not been confirmed yet."
         : "This booking is not paid yet.";
       throw Errors.badRequest(`${reason} Add a desk override note to check it out anyway.`);

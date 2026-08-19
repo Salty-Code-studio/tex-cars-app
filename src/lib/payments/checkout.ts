@@ -28,7 +28,7 @@ const LABEL: Record<ChargeType, string> = {
 export async function createBookingCheckout(bookingId: string, origin: string): Promise<{ url: string }> {
   // Pay-at-desk mode: no Stripe checkout exists at all. Refuse up front, before
   // touching the DB or Stripe, so this never depends on Stripe being configured.
-  if (env.PAYMENT_MODE === "reserve") {
+  if (env.PAYMENT_MODE === "desk") {
     throw Errors.conflict("Online payment is disabled");
   }
 
@@ -130,10 +130,10 @@ export async function createExtensionCheckout(
   deltaCents: number,
 ): Promise<{ url: string }> {
   // Same pay-at-desk guard as createBookingCheckout: no Stripe client exists in
-  // reserve mode. The dates were already extended by the caller (extendBooking)
+  // desk mode. The dates were already extended by the caller (extendBooking)
   // before this runs, same as any other post-commit Stripe failure here would
   // leave them; the desk still has the "desk" payment option for this booking.
-  if (env.PAYMENT_MODE === "reserve") {
+  if (env.PAYMENT_MODE === "desk") {
     throw Errors.conflict("Online payment is disabled");
   }
 
