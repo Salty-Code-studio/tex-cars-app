@@ -17,12 +17,13 @@ import {
 } from "../../wizard-ui";
 
 const TOTAL = 7;
-// In reserve mode a pending booking was never going to be paid online in the
-// first place (the owner confirms it by hand); the override copy below must
-// say "not confirmed", not "unpaid", or staff get a false signal about why
-// the wizard is refusing to proceed (mirrors the same fix in the API layer's
-// completePickup, src/lib/admin/inspections.ts).
-const RESERVE_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "reserve";
+// In desk mode a pending booking was never going to be paid online in the
+// first place (a manager confirms it via Telegram, email, or the admin
+// Confirm button); the override copy below must say "not confirmed", not
+// "unpaid", or staff get a false signal about why the wizard is refusing to
+// proceed (mirrors the same fix in the API layer's completePickup,
+// src/lib/admin/inspections.ts).
+const DESK_MODE = process.env.NEXT_PUBLIC_PAYMENT_MODE === "desk";
 
 export default function CheckinWizard() {
   const { bookingId } = useParams<{ bookingId: string }>();
@@ -279,13 +280,13 @@ export default function CheckinWizard() {
           {b.status === "pending" ? (
             <div className="wiz-card">
               <p className="wiz-sub">
-                {RESERVE_MODE
+                {DESK_MODE
                   ? "This booking has not been confirmed yet. A desk override note is required to hand the car over anyway."
                   : "This booking is not paid online yet. A desk override note is required to hand the car over anyway."}
               </p>
               <textarea
                 className="wiz-input"
-                placeholder={RESERVE_MODE ? "Why is the car going out unconfirmed?" : "Why is the car going out unpaid?"}
+                placeholder={DESK_MODE ? "Why is the car going out unconfirmed?" : "Why is the car going out unpaid?"}
                 value={overrideNote}
                 onChange={(e) => setOverrideNote(e.target.value)}
               />

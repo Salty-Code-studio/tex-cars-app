@@ -49,6 +49,8 @@ const CONTAINER_ENV_KEYS = [
   "NEXT_PUBLIC_PAYMENT_MODE",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_CHAT_ID",
+  "TELEGRAM_BOT_USERNAME",
+  "TELEGRAM_WEBHOOK_SECRET",
   "STORAGE_DRIVER",
   "SUPABASE_URL",
   "SUPABASE_SERVICE_ROLE_KEY",
@@ -110,9 +112,16 @@ export default {
 
   /**
    * Cloudflare Cron Trigger dispatch. Replaces the Vercel crons in vercel.json.
-   * Keyed on controller.cron so one Worker handles both scheduled jobs: calls
-   * the matching authenticated route inside the container, passing the shared
-   * CRON_SECRET the route requires.
+   * Keyed on controller.cron so one Worker handles all three scheduled jobs:
+   * calls the matching authenticated route inside the container, passing the
+   * shared CRON_SECRET the route requires. approval-reminders runs hourly
+   * here (2026-08-19, desk-mode adoption) - deliberately faster than FD's own
+   * Vercel deployment, which downgrades this same cron to daily because
+   * Vercel's Hobby plan caps cron frequency at once a day; Cloudflare Workers
+   * has no such limit at the tier this account already runs the 15-minute
+   * expire-holds cron on, so the hourly cadence the desk-mode approval
+   * design always intended (LAUNCH.md's "Desk mode + Telegram approvals"
+   * section) is restored rather than downgraded to match FD's Vercel copy.
    */
   async scheduled(
     controller: ScheduledController,
@@ -122,6 +131,7 @@ export default {
     const jobs: Record<string, string> = {
       "*/15 * * * *": "/api/cron/expire-holds",
       "0 9 * * *": "/api/cron/compliance-alerts",
+      "0 * * * *": "/api/cron/approval-reminders",
     };
     const path = jobs[controller.cron];
     if (!path) return;
