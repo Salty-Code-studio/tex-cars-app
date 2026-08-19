@@ -86,9 +86,15 @@ static site.
 - [ ] Check `email_log` shows `sent` rows (login code, booking confirmed, admin alerts).
 - [ ] The cron fires: Vercel → Cron → `/api/cron/expire-holds` runs every 15 min.
 - [ ] Desk-mode clients only: `/api/cron/approval-reminders` is also
-      registered (Vercel → Cron) and `CRON_SECRET` is set. Without it,
-      unanswered approval requests never get their reminder ping, no matter
-      what the reminder interval under **Settings > Booking approvals** says.
+      registered and `CRON_SECRET` is set. Without it, unanswered approval
+      requests never get their reminder ping, no matter what the reminder
+      interval under **Settings > Booking approvals** says. Tex runs on
+      Cloudflare Workers, not Vercel, so this trigger fires hourly
+      (`0 * * * *` in wrangler.jsonc, dispatched by worker/index.ts's
+      `scheduled()`) with no Hobby/Pro-plan cron-frequency limit to work
+      around (unlike FD's own Vercel deployment, which has to run this cron
+      daily on the Hobby tier). vercel.json's own copy of this schedule is
+      kept in sync as a documentation mirror only; it is not the live trigger.
 
 ## 9. Security checklists (fort) before go-live
 
