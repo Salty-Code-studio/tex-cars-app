@@ -21,7 +21,8 @@ import type { QuoteBreakdown } from "@/lib/booking/quote";
 async function context(bookingId: string) {
   const db = await getDb();
   const [row] = await db.select({
-    booking: bookings, vehicleName: vehicles.name, customerEmail: customers.email,
+    booking: bookings, vehicleName: vehicles.name, vehicleClass: vehicles.class,
+    customerEmail: customers.email, customerName: customers.name,
   }).from(bookings)
     .innerJoin(vehicles, eq(bookings.vehicleId, vehicles.id))
     .innerJoin(customers, eq(bookings.customerId, customers.id))
@@ -86,8 +87,12 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
     await sendAndLog({
       to: ctx.customerEmail, type: "booking_confirmed",
       ...bookingConfirmedEmail({
-        vehicleName: ctx.vehicleName, startAt: ctx.booking.startAt, endAt: ctx.booking.endAt,
+        bookingId,
+        vehicleClass: ctx.vehicleClass, vehicleName: ctx.vehicleName,
+        startAt: ctx.booking.startAt, endAt: ctx.booking.endAt,
+        customerName: ctx.customerName,
         rentalTotalCents: breakdown.subtotalCents, currency: pay?.currency ?? breakdown.currency,
+        depositCents: breakdown.depositCents,
         amountPaidCents: pay?.amountCents, chargeType: pay?.type,
         paid,
       }),
