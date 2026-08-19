@@ -6,7 +6,7 @@ import { publicBookingConfig } from "@/lib/booking/public";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/booking-config — public, non-sensitive settings the booking wizard
+/** GET /api/booking-config: public, non-sensitive settings the booking wizard
  *  needs before it can quote (driver age bands and the young-driver fee). */
 export const GET = withRoute(async (req) => {
   await enforceRateLimit(req, "global", "public");
