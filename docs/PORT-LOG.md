@@ -305,8 +305,9 @@ Per the control plan's Task 6 amendment, flagging here so it is not lost: `minDr
 - `cancellationWindowHours` = 48. Confirm the free-cancellation cutoff before pickup.
 - `depositPercent` / `depositMinCents` = 25% / 3000 cents ($30.00 floor). Confirm the deposit formula.
 - `openingTime` / `closingTime` = 08:00 / 18:00. Confirm real business hours; not published anywhere on the marketing site today, so this is a placeholder, not a sourced value.
+- `adminAlertRecipients` = `[]` (empty) in `scripts/seed.ts` today. **New confirm item, Task 3 (2026-08-19, desk-mode adoption wave):** every owner-facing email this app sends (new booking, payment received, desk reservation confirmed, cancellation) fans out to this list and ONLY this list; nothing is hardcoded in `notifications.ts` or `templates.ts`. With it empty, `sendToMany` fans out to zero addresses, best-effort and silent (by design, not a bug: confirmed by `notifications-new-booking.test.ts`'s "zero recipients" case). Task 6 must seed `["info@saltycodestudio.com"]` (the studio's own inbox, so nothing is missed at go-live) via the admin Settings page or a direct SQL update, then swap it for the Tex owner's real address once Mo supplies it. Same admin Settings page as the other five rows below, no redeploy needed.
 
-All five settings are owner-adjustable in the admin Settings page without a redeploy (wave 05's `8dad361` added the young-driver fields there; the rest predate this port), so confirming late is low-cost, but none should be treated as final for real bookings until the owner has actually confirmed them at least once.
+All six settings are owner-adjustable in the admin Settings page without a redeploy (wave 05's `8dad361` added the young-driver fields there, Task 3 relies on the pre-existing `adminAlertRecipients` field; the rest predate this port), so confirming late is low-cost, but none should be treated as final for real bookings until the owner has actually confirmed them at least once.
 
 ## Backport candidates to FleetDesk
 

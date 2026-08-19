@@ -142,6 +142,21 @@ export function adminPaymentEmail(args: { vehicleName: string; startAt: string; 
   };
 }
 
+/** Owner copy for a desk-mode confirm (no online payment): the counterpart to
+ *  adminPaymentEmail for bookings where nothing was charged online. Sent from
+ *  notifyBookingConfirmed's `!paid` branch, so it covers every desk confirm
+ *  origin (Telegram tap, email link, admin button) through that one funnel. */
+export function adminReservationConfirmedEmail(args: {
+  vehicleName: string; startAt: string; endAt: string; rentalTotalCents: number; currency: string; customerEmail: string;
+}): RenderedEmail {
+  return {
+    subject: `Reservation confirmed: ${args.vehicleName}`,
+    html: shell("Reservation confirmed", `
+      <p>A desk reservation is now confirmed. No online payment was taken. The customer pays at pickup.</p>
+      <p><strong>${args.vehicleName}</strong><br>${formatDateTime(args.startAt)} to ${formatDateTime(args.endAt)}<br>${money(args.rentalTotalCents, args.currency)} rental total from ${args.customerEmail}</p>`),
+  };
+}
+
 export function passwordResetEmail(url: string): RenderedEmail {
   return {
     subject: "Reset your Tex Cars admin password",

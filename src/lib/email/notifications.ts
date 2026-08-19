@@ -11,7 +11,7 @@ import { getSettings } from "@/lib/admin/settings";
 import { sendAndLog, sendToMany } from "@/lib/email/send";
 import {
   bookingConfirmedEmail, bookingCancelledEmail, adminNewBookingEmail, adminPaymentEmail,
-  bookingExtendedEmail,
+  adminReservationConfirmedEmail, bookingExtendedEmail,
 } from "@/lib/email/templates";
 import { notifyAdmin, sendOwnerWhatsApp, sendOwnerTelegram } from "@/lib/notify";
 import { logger } from "@/lib/logger";
@@ -95,6 +95,18 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
         ...adminPaymentEmail({
           vehicleName: ctx.vehicleName, startAt: ctx.booking.startAt, endAt: ctx.booking.endAt,
           amountCents: pay.amountCents, currency: pay.currency,
+          customerEmail: ctx.customerEmail,
+        }),
+      }));
+    } else {
+      // Desk confirm (Telegram tap, email link, or admin button): no payment
+      // row to report, so the owner gets a reservation-confirmed summary
+      // instead of a payment alert. Same recipients, same best-effort fan-out.
+      await sendToMany(settings.adminAlertRecipients, (to) => ({
+        to, type: "admin_reservation_confirmed",
+        ...adminReservationConfirmedEmail({
+          vehicleName: ctx.vehicleName, startAt: ctx.booking.startAt, endAt: ctx.booking.endAt,
+          rentalTotalCents: breakdown.subtotalCents, currency: breakdown.currency,
           customerEmail: ctx.customerEmail,
         }),
       }));
