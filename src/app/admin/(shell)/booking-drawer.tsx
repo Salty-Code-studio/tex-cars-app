@@ -341,7 +341,12 @@ export function BookingDrawer({ bookingId, onClose, onChanged, extraSections = n
   }
 
   const b = detail?.booking;
-  const canConfirm = b?.status === "pending";
+  // The confirm route only exists on desk deployments (online bookings are
+  // confirmed by the Stripe webhook when payment lands, see the matching
+  // isDeskMode gate in the route itself, the real enforcement) - DESK_MODE
+  // is a build-time constant, so this needs no fetch/loading state the way
+  // FD's own dynamically-fetched paymentMode did.
+  const canConfirm = DESK_MODE && b?.status === "pending";
   const canCancel = b?.status === "pending" || b?.status === "confirmed";
   // A car can be swapped for any live booking, including one already picked up
   // (the car can break down mid-rental). Only cancelled/completed are out.

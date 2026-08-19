@@ -124,7 +124,9 @@ export default function BookPage() {
   useEffect(() => {
     // Only an online booking ever comes back with ?canceled=1 (Stripe's own
     // cancel_url); desk mode never opens a Stripe session, so there is
-    // nothing to resume.
+    // nothing to resume. No pre-config-paint race to guard here (unlike
+    // FD's own dynamically-fetched paymentMode, DESK_MODE is a build-time
+    // constant, correct from the very first render).
     if (DESK_MODE) return;
     const p = new URLSearchParams(window.location.search);
     const id = p.get("id");
@@ -631,7 +633,12 @@ export default function BookPage() {
                     {policy && (
                       <div className="policy-box">
                         <p>Free cancellation until {policy.cancellationWindowHours} hours before pickup.</p>
-                        <p>Within {policy.cancellationWindowHours} hours or no show: the deposit is not refunded.</p>
+                        {/* Desk mode collects nothing online, so there is no
+                            paid deposit to withhold; the sentence would be
+                            false there and is omitted entirely. */}
+                        {!DESK_MODE && (
+                          <p>Within {policy.cancellationWindowHours} hours or no show: the deposit is not refunded.</p>
+                        )}
                         {policy.securityDepositCents !== null && (
                           <p>Refundable security deposit of {money(policy.securityDepositCents, cur)} due at pickup. You get it back at return.</p>
                         )}
