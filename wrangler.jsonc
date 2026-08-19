@@ -19,7 +19,7 @@
       // Pre-pushed via crane from the HOST network (Colima's NAT kills large
       // registry uploads; build with `wrangler containers build`, `docker save`,
       // then `crane push`). Swap back to "./Dockerfile" only if that's fixed.
-      "image": "registry.cloudflare.com/8cd6b08425f14fe7e1f52e4a10109545/tex-cars-app:golive",
+      "image": "registry.cloudflare.com/8cd6b08425f14fe7e1f52e4a10109545/tex-cars-app:parity-9152da8",
       "class_name": "TexCarsContainer",
       "name": "tex-cars-app",
       // Rolling deploys need >=2; keep low for a single-tenant backoffice.
@@ -65,6 +65,11 @@
     // `wrangler secret put TELEGRAM_BOT_TOKEN` / `wrangler secret put
     // TELEGRAM_CHAT_ID`, never here.
     "NODE_ENV": "production",
+    // Parity port storage layer (GO-LIVE-PARITY step 3/4). The service-role key
+    // is a secret: `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`, never here.
+    "STORAGE_DRIVER": "supabase",
+    "STORAGE_BUCKET": "fleet-docs",
+    "SUPABASE_URL": "https://fnqdplvwokijbqmjhawd.supabase.co",
     // Branded domain since 2026-08-18 (zone on Cloudflare). workers.dev stays
     // in CORS as a fallback origin during the transition.
     "APP_ORIGIN": "https://app.tex-cars.com",
