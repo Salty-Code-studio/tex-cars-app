@@ -67,11 +67,9 @@
     "NODE_ENV": "production",
     // Parity port storage layer (GO-LIVE-PARITY step 3/4). The service-role key
     // is a secret: `wrangler secret put SUPABASE_SERVICE_ROLE_KEY`, never here.
-    // TEMPORARILY commented until that secret is set (env.ts fails closed if the
-    // supabase driver is selected without URL+key): uncomment all three + redeploy.
-    // "STORAGE_DRIVER": "supabase",
-    // "STORAGE_BUCKET": "fleet-docs",
-    // "SUPABASE_URL": "https://fnqdplvwokijbqmjhawd.supabase.co",
+    "STORAGE_DRIVER": "supabase",
+    "STORAGE_BUCKET": "fleet-docs",
+    "SUPABASE_URL": "https://fnqdplvwokijbqmjhawd.supabase.co",
     // Branded domain since 2026-08-18 (zone on Cloudflare). workers.dev stays
     // in CORS as a fallback origin during the transition.
     "APP_ORIGIN": "https://app.tex-cars.com",
