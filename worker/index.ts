@@ -5,7 +5,7 @@
 // a Cloudflare Container (the app's Dockerfile). Two responsibilities only:
 //
 //   1. fetch()     — proxy every inbound request to the container's port 3000.
-//   2. scheduled() — the hold-expiry + compliance-alerts crons, moved off
+//   2. scheduled() - the hold-expiry + compliance-alerts crons, moved off
 //                    Vercel Cron onto native Cloudflare Cron Triggers (see
 //                    wrangler.jsonc [triggers]), dispatched by controller.cron.
 //
