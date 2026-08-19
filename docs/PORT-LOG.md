@@ -84,24 +84,24 @@ Test Files  42 passed (42)
 | 6355620 | feat(admin): dashboard compliance card + GET /api/admin/compliance | port (ported, Task 4 wave 03 `d2071f0`) |
 | 6a2d529 | feat(admin): fleet expiry DatePickers + due-soon compliance badges | port (ported, Task 4 wave 03 `f582a36`) |
 | 36f5ee2 | feat(admin): compliance first-warning threshold in Settings | port (ported, Task 4 wave 03 `475a36a`) |
-| 4784827 | feat(fleet): make, model, year and color columns on vehicles | port |
-| e3d4af4 | feat(fleet): vehicle_notes table + notes lib (add, list, resolve, open counts) | port |
-| 578cc69 | feat(fleet): escalate a vehicle note to an availability block | port |
-| 8e978d7 | feat(fleet): notes and escalate admin API routes; vehicles list carries open-note counts | port |
-| 67683d9 | feat(planning): open-note counts on planning vehicles | port |
-| e6bb61d | feat(fleet): vehicle form captures make, model, year and color with auto-composed name | port |
-| 471739c | feat(fleet): fleet list grouped by class with sticky headers, search and class chips | port |
-| f9d5e25 | feat(fleet): notes drawer with add, resolve, block-car escalation and row badges | port |
-| 5a07f4c | feat(planning): open-note badge on planning board vehicle labels | port |
-| 7d5757a | feat(settings): young-driver age band settings, minDriverAge default 18 | port |
-| 0aef67f | feat(quote): young-driver per-day surcharge line folded into subtotal | port |
-| a3b1376 | feat(booking): driverAgeBand classifier for the young-driver policy | port |
-| 89fbd5a | feat(booking): young-driver flag on public quotes + booking-config endpoint | port |
-| b5993f9 | feat(booking): DOB truth-check reprice with priceAdjusted flag in createBooking | port |
-| 4714078 | fix(admin): extension re-quote preserves the young-driver surcharge | port |
-| 6327a31 | feat(admin): young-driver age and fee fields on the settings page | port |
-| 15257e6 | feat(book): driver age selector, live young-driver quote, transparent price-update notice | port |
-| e1d3c06 | fix(book): persist driver-age claim across refresh and gate reserve on it | port |
+| 4784827 | feat(fleet): make, model, year and color columns on vehicles | port (ported, Task 4 wave 04 `4bbc9b6`; migration 0019, see Note 12) |
+| e3d4af4 | feat(fleet): vehicle_notes table + notes lib (add, list, resolve, open counts) | port (ported, Task 4 wave 04 `a4707b3`; migration 0020, see Note 12) |
+| 578cc69 | feat(fleet): escalate a vehicle note to an availability block | port (ported, Task 4 wave 04 `059ffa7`) |
+| 8e978d7 | feat(fleet): notes and escalate admin API routes; vehicles list carries open-note counts | port (ported, Task 4 wave 04 `62c05ac`) |
+| 67683d9 | feat(planning): open-note counts on planning vehicles | port (ported, Task 4 wave 04 `542bec2`) |
+| e6bb61d | feat(fleet): vehicle form captures make, model, year and color with auto-composed name | port (ported, Task 4 wave 04 `e39fb48`) |
+| 471739c | feat(fleet): fleet list grouped by class with sticky headers, search and class chips | port (ported, Task 4 wave 04 `0fdb6a3`; brand-token fix, see Note 12) |
+| f9d5e25 | feat(fleet): notes drawer with add, resolve, block-car escalation and row badges | port (ported, Task 4 wave 04 `2d4313d`) |
+| 5a07f4c | feat(planning): open-note badge on planning board vehicle labels | port (ported, Task 4 wave 04 `8d1a069`) |
+| 7d5757a | feat(settings): young-driver age band settings, minDriverAge default 18 | port (ported, Task 4 wave 05 `d8d20e3`; migration 0021, see Note 12) |
+| 0aef67f | feat(quote): young-driver per-day surcharge line folded into subtotal | port (ported, Task 4 wave 05 `973fb86`) |
+| a3b1376 | feat(booking): driverAgeBand classifier for the young-driver policy | port (ported, Task 4 wave 05 `e6e010f`) |
+| 89fbd5a | feat(booking): young-driver flag on public quotes + booking-config endpoint | port (ported, Task 4 wave 05 `3e1e3bb`) |
+| b5993f9 | feat(booking): DOB truth-check reprice with priceAdjusted flag in createBooking | port (ported, Task 4 wave 05 `6adb3e9`) |
+| 4714078 | fix(admin): extension re-quote preserves the young-driver surcharge | port (ported, Task 4 wave 05 `4001126`) |
+| 6327a31 | feat(admin): young-driver age and fee fields on the settings page | port (ported, Task 4 wave 05 `8dad361`) |
+| 15257e6 | feat(book): driver age selector, live young-driver quote, transparent price-update notice | port (ported, Task 4 wave 05 `9818393`; reserve-mode reorder + copy, see Note 12) |
+| e1d3c06 | fix(book): persist driver-age claim across refresh and gate reserve on it | port (ported, Task 4 wave 05 `93cbce1`) |
 | 1c498cc | feat(storage): env-driven object storage facade with local driver and signed dev URLs | port |
 | 8ce0571 | feat(storage): supabase driver, dev signed route, same-origin admin file streaming | port |
 | a6da726 | feat(inspections): inspections table, inspection_kind enum, desk balance payment type | port |
@@ -237,6 +237,13 @@ Test Files  42 passed (42)
     (a) **Migration 0018.** `c6323f1` kept FD's exact filename `drizzle/0018_watery_stark_industries.sql` per the MIGRATION RULE (five `ALTER TABLE` statements: four new `vehicles` columns, one new `settings` column; no enum surgery, so none of the 55P04 same-transaction hazard Notes 4/9(a) describe applies here). `git cherry-pick -n` auto-merged `drizzle/meta/_journal.json` cleanly but, as expected per Note 9(b), carried FD's raw idx-18 `when` (`1785201242039`) verbatim - below Tex's idx-17 `when` (`1786982009627`), which would have silently skipped 0018 on any DB already migrated through 0017, and would have failed the `migration-incremental-upgrade.test.ts` journal-monotonicity guard. Remapped by hand using the binding formula: `1786970199527 + (1785201242039 - 1785176040444) = 1786995401122`, strictly greater than idx 17's value. `drizzle/meta/0018_snapshot.json` had the same FD-only/Tex-only divergence Notes 8/9/10 found at every prior wave boundary (`early_access_leads` present, `admin_reset_tokens` missing); patched by swapping the table entry for a byte-identical copy of `0017_snapshot.json`'s `admin_reset_tokens` block (confirmed via direct object-equality check, not just visual diff). `prevId` needed no fix this time: FD's own chain id (`cfd53e78-...`) already matched Tex's real 0017 snapshot id, since both repos cherry-picked identical 0015-0017 content with the same generated ids. Verified via the incremental-upgrade regression test (phase 1 to 0014 committed, phase 2 applies 0015 onward including the new 0018 in one transaction) and a fresh migration-smoke, both green.
     (b) **CRON RULE, Cloudflare side.** `54a24c3`'s own diff only touches `vercel.json` (documentation mirror, hand-merged per the wave-03 amendment: kept Tex's `*/15` expire-holds, added the `0 9` compliance-alerts entry - FD's parallel diff had also changed expire-holds to a daily `0 3` schedule, which was NOT adopted, since Tex's real hold-expiry cadence is unrelated to FD's and the port brief is explicit that only the compliance entry gets added). The actual cron TRIGGER for Tex runs through Cloudflare, not Vercel, so the CRON RULE's second half (`wrangler.jsonc` `triggers.crons` + a `worker/index.ts` `scheduled()` dispatch keyed on `controller.cron`) was hand-implemented as its own commit (`2c6c2fb`, not tied to any FD hash - FD has no Cloudflare Container deploy path to have written this in the first place). Code matches the v2 plan's Task 4 wave-03 code block verbatim; `_controller` (previously unused, prefixed) became `controller` since the dispatch now reads `controller.cron`. Both files are on the PROTECTED list but this is the exact wave-specific authorized edit. `worker/` is excluded from the main `tsconfig.json` (`"exclude": ["node_modules", "worker"]`), so `npx tsc --noEmit` does not and cannot cover it; there is no dedicated worker typecheck script in `package.json`. Verification for this file is manual code review against the plan's block (verbatim match confirmed) plus the existing `fetch()`/container/env-forwarding code around it being left untouched (`git diff` shows only the `triggers` block and the `scheduled()` body changed). A self-review pass after all 8 ledger commits landed caught two em-dashes in this hand-written commit's own new comments (violates the binding dash-free rule); fixed in a follow-up commit (`010f01c`) rather than amending, per the no-amend rule. Pre-existing em-dashes elsewhere in both files (from before this wave, e.g. the file's own header comment) were left untouched as out of scope for this wave's authorized edit.
 
+12. **Waves 04/05: migrations 0019/0020/0021 remap + snapshot reconciliation, the wave-04 fleet.css brand-token leak, and the wave-05 reserve-mode reorder.** No FD hardening commits exist for any of the three migrations this pair of waves adds (`git -C <FD> log --oneline --all -- drizzle/0019* drizzle/0020* drizzle/0021*` returns exactly one hit each, the origin commit itself; `--grep 55P04`/`--grep "fix(migrations)"` return only `69b3889`, already hoisted in wave 01) - nothing to hoist, matching wave 02's 0017 finding (Note 10(a)).
+    (a) **Migration 0019** (`4784827`, four nullable `vehicles` columns: `make`/`model`/`year`/`color`; no enum surgery, no 55P04 hazard). Journal idx 19 auto-merged with FD's raw `when` (`1785204618511`); remapped by the binding formula to `1786998777594` (`= 1786970199527 + (1785204618511 - 1785176040444)`), strictly greater than idx 18's `1786995401122`. `drizzle/meta/0019_snapshot.json` had the by-now-familiar FD-only/Tex-only divergence (`early_access_leads` present, `admin_reset_tokens` missing); patched with the same byte-identical swap Notes 8/9/10/11 established, sourcing the block from `0018_snapshot.json` (the immediately preceding, already-reconciled snapshot - this wave established the pattern of always sourcing from the PREVIOUS wave's snapshot rather than always from 0014, since every intermediate snapshot in the chain carries the same divergence and the immediately-prior one is guaranteed already fixed). Verified byte-for-byte equality via a JSON round-trip comparison (`json.dumps(..., sort_keys=True)` on both sides), not just visual diff. `prevId` needed no fix: FD's chain id already matched Tex's real 0018 snapshot id.
+    (b) **Migration 0020** (`e3d4af4`, new `vehicle_notes` table). Same remap formula applied to idx 20: FD raw `when` `1785204912916` -> `1786999071999`, strictly greater than idx 19. Same snapshot swap, sourced from 0019. This commit's `src/lib/db/schema/index.ts` export-barrel conflicted (not migration-related): FD's own diff, evaluated against its own history, adds two export lines (`./leads` and `./vehicle-notes`) because FD's parent commit already exports `./leads` (from `a288900`, marketing funnel, ledger decision `skip`, never ported - `src/lib/db/schema/leads.ts` does not exist in Tex). Git's 3-way merge presented both as one insertion block against Tex's base (which has neither), producing a real conflict rather than a clean auto-merge. Resolved by keeping only `export * from "./vehicle-notes";` - adding the `leads` line would have been a broken import to a file that was never ported, consistent with `a288900`'s `skip` decision and Note 3's `0014_hot_mesmero` precedent (the same marketing-funnel lineage, never ported, at a different vintage).
+    (c) **Migration 0021** (`7d5757a`, `settings.min_driver_age` DEFAULT 21 -> 18 plus two new NOT NULL columns `young_driver_age` default 21, `young_driver_fee_cents_per_day` default 1000). Same remap formula applied to idx 21: FD raw `when` `1785208728603` -> `1787002887686`, strictly greater than idx 20. Same snapshot swap, sourced from 0020. The `minDriverAge` default change landed with zero conflict (Tex's pre-wave value at this schema layer was the vanilla, never-customized `21`, identical to FD's own pre-wave default, so there was no actual Tex-specific value to preserve here - the port brief's "minDriverAge stays Tex's current value in any settings default conflict" guard never triggered because no conflict occurred). `scripts/seed.ts` never sets `minDriverAge` explicitly (relies purely on the column default), so this migration's DEFAULT change is the full extent of the effect; no seed file was touched by this dispatch. The distinction between "the schema DEFAULT for new/self-healed rows" and "the operator's actual configured value for an existing settings row" is real and still owned by Task 6 per the "Owner settings to confirm" section below - unchanged by this wave, just now mechanically possible to set to something other than 18 or 21 via the admin Settings page (wave 05's own commit 7, `8dad361`).
+    (d) **Wave-04 brand-token leak.** `471739c`'s new `.fleet-search:focus` rule carried FD's raw stale-teal box-shadow tint verbatim: `rgba(14,58,64,.12)` (the decimal decomposition of FD's pre-Task-3 `#0E3A40` teal, never updated to Tex's palette because this is a brand-new rule with no Tex predecessor for git to conflict against - the same class of gap Task 3's token table closed for pre-existing rules, but this one didn't exist yet at Task 3 time). Fixed in the same commit to `rgba(21, 25, 47,.12)`, matching the established Tex-navy focus-ring convention already used verbatim three other places in `admin.css` (`.field input:focus`, `.form-grid input:focus`, and the shadow-token block in `:root`). Swept the rest of both wave-04 CSS commits' new rules for the same class of raw-hex/raw-rgba leak; none found.
+    (e) **Wave-05 reserve-mode reorder and copy** (`15257e6`). The only real merge conflict of either wave, in `submit()`'s post-`/api/bookings` branch: HEAD (Tex, from earlier waves) had `if (RESERVE_MODE) { ...; return; }` as the first thing after the `!res.ok` guard; incoming (FD) inserted the `priceAdjusted` reprice-notice block in that same slot. Resolution order matters: put the `priceAdjusted` check FIRST, `RESERVE_MODE` short-circuit SECOND. With the reverse order, a reserve-mode customer whose claimed age band did not match their licence DOB would be silently redirected straight to the confirmation page on the corrected price with no notice and no second-tap confirmation - exactly the "post-payment surprise" the wave-05 spec's Workstream-5 constraint forbids, and reserve mode is still pre-payment/binding, not exempt from it. Verified the fix is real, not cosmetic: with the order reversed locally the reprice notice never sets/renders under a simulated `RESERVE_MODE=true` + mismatched-DOB booking; with the corrected order it does. Two secondary findings from the same review pass, both fixed inline: (i) the reprice notice's hardcoded copy "Tap the button again to confirm and pay" is false in reserve mode (no online payment occurs there); made it reserve-mode aware (`"confirm your reservation"` vs `"confirm and pay"`), matching the existing precedent at the neighboring `RESERVE_MODE ? "No payment needed today..." : "You'll be taken to..."` ternary two dozen lines below and wave 02's "You pay now" mirror-line fix (Note under wave-02's Reserve-mode preservation section); (ii) a carried-over FD comment used an em-dash mid-sentence right after "claimed age band", fixed to parenthetical phrasing in the same commit. Separately confirmed by direct inspection (no conflict, clean auto-merge) that the age-band selector itself (step 2) and the `{priceNotice && ...}` render site (final step) both already sit outside every `!RESERVE_MODE` gate in Tex's file - the only `RESERVE_MODE` conditionals nearby are the pay-card block (`!RESERVE_MODE`, wave 02) and the "You pay now" mirror line (`!RESERVE_MODE`, wave 02), neither of which this wave's diff touches - so the wave-specific instruction ("the wizard age selector must render in reserve mode too") was satisfied by Tex's pre-existing structure for the selector itself; the submit()-ordering fix was the one place it was NOT automatically satisfied. A second, unrelated em-dash was caught in post-wave self-review, in `booking-config/route.ts`'s JSDoc (from commit 4, `89fbd5a`, missed at review time because that commit's file was reviewed via a plain Read rather than a dash grep); fixed in a dedicated follow-up commit (`2926170`) rather than amending, per the no-amend rule.
+
 ## Task 9 runbook items (carried forward, do not execute now)
 
 - **NEXT_PUBLIC_SITE_NAME / NEXT_PUBLIC_SITE_URL / NEXT_PUBLIC_WHATSAPP_NUMBER** (from wave 02's `47d6b52`, Note 10(b)): add an `ENV NEXT_PUBLIC_SITE_NAME=... NEXT_PUBLIC_SITE_URL=... NEXT_PUBLIC_WHATSAPP_NUMBER=...` line to the Dockerfile's builder stage, mirroring the existing `NEXT_PUBLIC_PAYMENT_MODE` block (Dockerfile lines 57-68), and add the two non-secret values to `wrangler.jsonc`'s `vars` block alongside `PAYMENT_MODE`/`NEXT_PUBLIC_PAYMENT_MODE` for documentation parity (the container-runtime copy only helps server-rendered output; the client bundle needs the Docker build-time value). Real values: `NEXT_PUBLIC_SITE_NAME=Tex Cars`, `NEXT_PUBLIC_SITE_URL=https://tex-cars.com`, `NEXT_PUBLIC_WHATSAPP_NUMBER=2975945454` (E.164 digits, no `+`; from `site/data/config.js`'s `waNumber`).
@@ -244,6 +251,8 @@ Test Files  42 passed (42)
 ## Owner settings to confirm (carried forward for Task 6)
 
 Per the control plan's Task 6 amendment, flagging here so it is not lost: `minDriverAge` must stay at Tex's current production value, not silently reset to FleetDesk's default of 18. When Task 6 runs, confirm with the owner: young-driver age and fee, cancellation window, deposit percent, opening and closing times.
+
+**Update (wave 05, `7d5757a`/`d8d20e3`):** the `min_driver_age` column DEFAULT changed 21 -> 18 as part of wave 05's own migration 0021 (this is the young-driver feature itself: enabling 18-20 year olds to book at all, with the new surcharge covering that band; see Note 12(c)). This is a schema DEFAULT for new/self-healed settings rows, not a retroactive change to an existing row's stored value, and Tex's own `scripts/seed.ts` never set `minDriverAge` explicitly (it always relied on the column default, at 21 before this wave, 18 after) - so no seed edit was made or needed by this dispatch. The owner-confirmation item above is unchanged in substance: whatever the real Tex Cars production database's settings row currently holds for `minDriverAge` stays exactly as is until Task 6 explicitly patches it (or the owner edits it live in Settings, now including the two new young-driver fields wave 05 added there).
 
 ## Backport candidates to FleetDesk
 
@@ -474,6 +483,137 @@ Ran a full repo-wide sweep after all 10 wave-03 commits landed, before consideri
 
 Gates after the wave: full suite 58 files / 314 tests green, `npx tsc --noEmit` clean, `npm run lint` clean (one pre-existing warning), migration smoke clean, working tree clean.
 
+## Task 4, wave 04: fleet upgrades (make/model/year/color, vehicle notes)
+
+Commits `4784827`..`5a07f4c` (9 hashes, see the ledger above for each hash's target commit). Source: `fleetdesk/main`. Mechanics: individual `git cherry-pick -n <hash>` per commit, conflict-resolved per the playbook, one Tex commit per FD hash. Start HEAD: `d33ae37` (wave-03 end). End HEAD: `8d1a069`. FD scope reference: `fleetdesk/docs/superpowers/plans/2026-07-27-wave-04-fleet-upgrades.md` (9 tasks, one commit each, matched 1:1 to the ledger's 9 hashes in order).
+
+### Commit list (start to end)
+
+| # | Hash | Subject |
+|---|---|---|
+| 1 | `4bbc9b6` | feat(fleet): make, model, year and color columns on vehicles (port 4784827) |
+| 2 | `a4707b3` | feat(fleet): vehicle_notes table + notes lib (add, list, resolve, open counts) (port e3d4af4) |
+| 3 | `059ffa7` | feat(fleet): escalate a vehicle note to an availability block (port 578cc69) |
+| 4 | `62c05ac` | feat(fleet): notes and escalate admin API routes; vehicles list carries open-note counts (port 8e978d7) |
+| 5 | `542bec2` | feat(planning): open-note counts on planning vehicles (port 67683d9) |
+| 6 | `e39fb48` | feat(fleet): vehicle form captures make, model, year and color with auto-composed name (port e6bb61d) |
+| 7 | `0fdb6a3` | feat(fleet): fleet list grouped by class with sticky headers, search and class chips (port 471739c) |
+| 8 | `2d4313d` | feat(fleet): notes drawer with add, resolve, block-car escalation and row badges (port f9d5e25) |
+| 9 | `8d1a069` | feat(planning): open-note badge on planning board vehicle labels (port 5a07f4c) |
+
+### Migrations 0019, 0020
+
+Both kept FD's exact filenames (`drizzle/0019_perpetual_the_fury.sql`, `drizzle/0020_cuddly_turbo.sql`) per the MIGRATION RULE. Journal `when` remap and snapshot reconciliation (early_access_leads -> admin_reset_tokens swap) for both are detailed in Note 12(a)/(b). No FD hardening commits exist for either migration (checked per the port brief's instruction; see Note 12's opening line). Verified via migration-smoke after each of the two migration-bearing commits and again at wave end, all clean.
+
+### Per-commit conflicts
+
+Two of the nine ledger commits conflicted:
+
+1. **`e3d4af4` (`src/lib/db/schema/index.ts`).** The export-barrel conflict described in Note 12(b): resolved by keeping only `export * from "./vehicle-notes";`, dropping FD's `export * from "./leads";` (never ported, `a288900` = skip, no `leads.ts` file exists in Tex).
+2. **`4784827`/`e3d4af4`'s `drizzle/meta/_journal.json`** auto-merged cleanly on both migration commits (git resolved the append with no conflict markers) but, as every prior wave has found, carried FD's raw `when` values verbatim - hand-remapped per Note 12(a)/(b). Not a true git conflict, but included here since it required manual intervention every time regardless.
+
+The other seven ledger commits (`578cc69`, `8e978d7`, `67683d9`, `e6bb61d`, `471739c`, `f9d5e25`, `5a07f4c`) applied with zero conflicts. `471739c` and `f9d5e25` both auto-merged inside `src/app/admin/(shell)/fleet/page.tsx` and `fleet.css` despite those files having been touched by Task 3's redesign and wave 03's compliance badges since the FD plan was written; both auto-merges correctly preserved every pre-existing cell/badge (`complianceBadges(v)` rendering, insurance/inspection DatePickers) verbatim inside the new grouped-by-class `<tbody>` structure, matching the FD plan's own explicit warning to "keep every cell exactly."
+
+### Fleet.css brand-token leak
+
+`471739c`'s new `.fleet-search:focus` rule carried FD's raw stale-teal `rgba(14,58,64,.12)` box-shadow tint (a brand-new rule, so nothing existed for git to conflict against and auto-repoint). Fixed in the same commit to `rgba(21, 25, 47,.12)`, matching the Tex-navy focus-ring convention already established three other places in `admin.css`. Full detail in Note 12(d). Swept both wave-04 CSS-touching commits (`471739c`, `f9d5e25`) for any other raw-hex/raw-rgba leak; none found - every other new rule in both commits uses semantic `var(--token)` references only.
+
+### Reserve-mode / protected-surface preservation
+
+Fleet upgrades are an entirely new surface (vehicle identity fields, notes, escalate-to-block) with no reserve-mode-specific behavior to preserve. Verified via `git diff d33ae37..8d1a069 --stat` against every file on the Global Constraints' PROTECTED list (`scripts/seed.ts`, `scripts/seed-demo-bookings.ts`, `src/env.ts`, `wrangler.jsonc`, `worker/index.ts`, `Dockerfile`, `next.config.ts`, `vercel.json`, `.mcp.json`, `.env.local`, the demo-door files, the password-reset surface, `src/lib/notify.ts`): all empty, zero exceptions this wave (unlike wave 03, nothing in this wave's scope touches cron/Cloudflare, so even the wave-03-style authorized exceptions do not apply here). The wave-specific instruction to "preserve the Tex 'Confirm reservation' surface in any board/drawer conflict" never came into play: `5a07f4c` (the one commit touching the planning board page) only edits the page-local `Vehicle` interface and the `pl-label` element; the "Confirm reservation" action (`doConfirm()`) lives entirely in the separate `booking-drawer.tsx` file, which this wave never touches (confirmed via `git status --short` showing it absent from every wave-04 commit's changed-files list).
+
+### Test evidence
+
+Baseline before wave-04 work: 58 files / 314 tests, green (matching wave-03's end state).
+
+Targeted runs per commit, all green: 4 (commit 1, `fleet-identity.test.ts`) -> 5 (commit 2, `vehicle-notes.test.ts`) -> 7 (commit 3, escalate) -> 17 across `vehicle-notes.test.ts` + `fleet-identity.test.ts` + `admin-vehicles.test.ts` (commit 4, routes) -> 11 across all three planning test files (commit 5) -> 10 across `admin-vehicles.test.ts` + `fleet-identity.test.ts` (commit 6, UI regression check, no dedicated test per the FD plan) -> 13 same files (commit 7) -> 17 across `vehicle-notes.test.ts` + `admin-vehicles.test.ts` + `fleet-identity.test.ts` (commit 8) -> 29 across all planning files + `reservation-mode.test.ts` + `admin-confirm-booking.test.ts` (commit 9, board regression + reserve-mode/confirm-reservation guard).
+
+**Wave-end full suite** (`npm test -- --no-file-parallelism`): **61 files / 326 tests green** (up from 58/314; +3 files: `fleet-identity.test.ts`, `vehicle-notes.test.ts`, `planning-notes.test.ts`; +12 tests, matching the sum of each new file's final test count).
+
+`npx tsc --noEmit`: clean at every commit boundary, including the final one.
+
+`npm run lint`: exits 0 at every UI-commit boundary (6, 7, 8, 9). Same single pre-existing warning waves 01-03 already documented (`react-hooks/exhaustive-deps` on the planning board's mount-only `useEffect`) - unrelated to this wave's diffs.
+
+Migration smoke (`DATABASE_URL=pglite://.migration-smoke npm run db:migrate && rm -rf .migration-smoke`): clean immediately after `4784827` (0019), immediately after `e3d4af4` (0020), and again at wave end. `migration-incremental-upgrade.test.ts` (phase 1 through 0014, phase 2 through the real `DRIZZLE_DIR`, now including 0019 and 0020) stayed green throughout, including its static journal-monotonicity guard - the strongest available evidence both remaps are correct.
+
+### Self-review findings
+
+Ran a full repo-wide sweep after all 9 wave-04 commits landed, before considering the wave done:
+
+1. **`grep -rin fleetdesk src/`**: two NEW hits this wave, both inert test-fixture admin email addresses (`notes-admin@fleetdesk.app` in `vehicle-notes.test.ts`, `planning-notes@fleetdesk.app` in `planning-notes.test.ts`) used only to create a throwaway `adminUsers` row for the test's `beforeAll`; never rendered anywhere in the app. Same class of finding as the pre-existing `fleetdesk-mig-` tmpdir prefix and `site-config.ts` comment already accepted in waves 02/03's self-review. Not user-visible; left as is.
+2. **Protected files**: see "Reserve-mode / protected-surface preservation" above - all empty, zero exceptions.
+3. **Brand tokens**: the fleet.css leak described above, found and fixed inline during commit 7's own review (not left for a later fix-loop commit, unlike wave 03's cron-comment em-dashes). Spot-checked `admin.css`'s `:root` block unaffected (this wave never touches that file).
+4. **No em dashes**: `git diff d33ae37..8d1a069 | grep "^+" | grep "—"` and a check of all 9 commit messages: zero hits.
+5. **`git status --short`** at the end of the dispatch: clean working tree.
+
+Gates after the wave: full suite 61 files / 326 tests green, `npx tsc --noEmit` clean, `npm run lint` clean (one pre-existing warning), migration smoke clean, incremental-upgrade regression green, working tree clean.
+
+## Task 4, wave 05: young-driver surcharge
+
+Commits `7d5757a`..`e1d3c06` (9 hashes, see the ledger above for each hash's target commit), plus the self-review fix `2926170`. Source: `fleetdesk/main`. Mechanics: individual `git cherry-pick -n <hash>` per commit, conflict-resolved per the playbook, one Tex commit per FD hash. Start HEAD: `8d1a069` (wave-04 end). End HEAD: `2926170`. FD scope reference: `fleetdesk/docs/superpowers/plans/2026-07-27-wave-05-young-driver.md` (9 tasks; the ledger's 9th hash, `e1d3c06`, is a real FD hardening commit that landed after the plan's own Task 9 "wire-through verification, no new code" step, not a Task-9 artifact itself - confirmed via `git show e1d3c06`, a genuine bug-fix commit persisting `driverAge` across a wizard refresh).
+
+### Commit list (start to end)
+
+| # | Hash | Subject |
+|---|---|---|
+| 1 | `d8d20e3` | feat(settings): young-driver age band settings, minDriverAge default 18 (port 7d5757a) |
+| 2 | `973fb86` | feat(quote): young-driver per-day surcharge line folded into subtotal (port 0aef67f) |
+| 3 | `e6e010f` | feat(booking): driverAgeBand classifier for the young-driver policy (port a3b1376) |
+| 4 | `3e1e3bb` | feat(booking): young-driver flag on public quotes + booking-config endpoint (port 89fbd5a) |
+| 5 | `6adb3e9` | feat(booking): DOB truth-check reprice with priceAdjusted flag in createBooking (port b5993f9) |
+| 6 | `4001126` | fix(admin): extension re-quote preserves the young-driver surcharge (port 4714078) |
+| 7 | `8dad361` | feat(admin): young-driver age and fee fields on the settings page (port 6327a31) |
+| 8 | `9818393` | feat(book): driver age selector, live young-driver quote, transparent price-update notice (port 15257e6) |
+| 9 | `93cbce1` | fix(book): persist driver-age claim across refresh and gate reserve on it (port e1d3c06) |
+| 10 | `2926170` | fix(booking): drop em-dash from booking-config route comment (self-review, house style) |
+
+### Migration 0021
+
+Kept FD's exact filename `drizzle/0021_big_squadron_sinister.sql` per the MIGRATION RULE (one `ALTER COLUMN ... SET DEFAULT`, two `ADD COLUMN ... NOT NULL DEFAULT`; no enum surgery, no 55P04 hazard). Journal `when` remap and snapshot reconciliation are detailed in Note 12(c); the `minDriverAge` 21->18 default-change decision (why it was NOT treated as a "settings default conflict" requiring Tex's value to be preserved) is also there. Verified via migration-smoke immediately after commit 1 and again at wave end, both clean.
+
+### Per-commit conflicts
+
+One of the ten commits conflicted, the one flagged by the dispatch brief as needing special attention:
+
+1. **`15257e6` (`src/app/(public)/book/page.tsx`, `submit()`).** Full detail in Note 12(e). HEAD had `if (RESERVE_MODE) { ...; return; }` immediately after the booking-creation response check; incoming added the `priceAdjusted` reprice-notice block in the same slot. Resolved by ordering the `priceAdjusted` check FIRST and the `RESERVE_MODE` short-circuit SECOND, so a wrong age claim still surfaces the corrected total and requires a second tap in reserve mode too, matching the wave-specific instruction that the young-driver UX is "pre-payment" and applies to reserve mode as well as pay mode. Two secondary fixes made inline in the same commit: the reprice notice's "confirm and pay" copy was made reserve-mode aware (mirrors the existing `RESERVE_MODE ? "No payment needed today..." : "You'll be taken to..."` ternary a few dozen lines below), and a carried-over FD comment's em-dash was replaced with parenthetical phrasing.
+
+The other nine commits applied with zero conflicts, including `6327a31` (settings page.tsx, auto-merged correctly after the "Minimum driver age" field despite waves 01-03 having added their own fields to the same panel) and `4714078`/`e1d3c06` (both small, surgical diffs against files this wave itself had just ported).
+
+### Reserve-mode preservation
+
+This wave's core design already routes young-driver pricing through the SAME `priceBreakdown` snapshot mechanism reserve mode and pay mode both read (per the dispatch brief: "quote() changes interact with reserve mode only via pricing snapshots") - `createBooking` (`b5993f9`/`6adb3e9`), `extendBooking` (`4714078`/`4001126`), and `quote()` itself (`0aef67f`/`973fb86`) carry no `RESERVE_MODE` branching of their own and needed none; the snapshot they compute is mode-agnostic by construction. Two places DID need explicit reserve-mode attention, both found and fixed:
+
+1. **The `submit()` ordering conflict** in `15257e6`/`9818393` - see above and Note 12(e).
+2. **Nothing else** - direct inspection confirmed the age-band selector (step 2 card) and the `{priceNotice && ...}` render site (final step) both already sit outside every `!RESERVE_MODE` gate in Tex's file (the only two `RESERVE_MODE` conditionals near either site - the pay-card block and the "You pay now" mirror line, both wave 02 - are untouched by this wave's diff), so the selector itself needed no gating fix; only the `submit()` control-flow ordering did.
+
+`canReserve`'s new `!!driverAge` guard (`e1d3c06`/`93cbce1`) applies identically in both modes by design: neither mode should let a customer reserve without a declared age band, since that band feeds the price snapshot regardless of how the booking is ultimately paid for (or not paid for, in reserve mode). Verified via `git diff 8d1a069..2926170 --stat` against every file on the Global Constraints' PROTECTED list: all empty, zero exceptions this wave.
+
+### Test evidence
+
+Baseline before wave-05 work: 61 files / 326 tests, green (matching wave-04's end state).
+
+Targeted runs per commit, all green: 9 (commit 1, `admin-settings.test.ts`) -> 22 across `booking-quote.test.ts` + `payments-charge.test.ts` (commit 2) + 38 across the 7 other files with stale `youngDriverCents` literals swept for regressions (all pre-existing, tsc-clean, no fixes needed) -> 12 (commit 3, `booking-license.test.ts`) -> 3 (commit 4, `young-driver.test.ts`, new file) -> 16 across `young-driver.test.ts` + `booking-create.test.ts`, plus 8 in `reservation-mode.test.ts` (commit 5) -> 18 across `young-driver.test.ts` + `extend-booking.test.ts` (commit 6) -> 9 `admin-settings.test.ts` regression check (commit 7, UI, no dedicated test) -> 25 across `reservation-mode.test.ts` + `young-driver.test.ts` + `booking-create.test.ts` (commit 8) -> 17 across `reservation-mode.test.ts` + `young-driver.test.ts` (commit 9).
+
+**Wave-end full suite** (`npm test -- --no-file-parallelism`): **62 files / 345 tests green** (up from 61/326; +1 file, `young-driver.test.ts`; +19 tests). Reconfirmed unchanged after the `2926170` self-review fix (comment-only change).
+
+`npx tsc --noEmit`: clean at every commit boundary, including the final one.
+
+`npm run lint`: exits 0 at every UI-commit boundary (7, 8, 9). Same single pre-existing warning waves 01-04 already documented - unrelated to this wave's diffs.
+
+Migration smoke (`DATABASE_URL=pglite://.migration-smoke npm run db:migrate && rm -rf .migration-smoke`): clean immediately after commit 1 (0021) and again at wave end. `migration-incremental-upgrade.test.ts` (phase 2 now also carrying 0019, 0020, 0021 in one transaction) stayed green throughout, including the static journal-monotonicity guard.
+
+### Self-review findings
+
+Ran a full repo-wide sweep after all ten wave-05 commits landed, before considering the wave done:
+
+1. **`grep -rin fleetdesk src/`**: zero NEW hits this wave (the four total hits in the repo are all pre-existing: two wave-04 test-fixture emails, the migration-test tmpdir prefix, the site-config.ts comment - none introduced or touched by wave 05).
+2. **Protected files**: see "Reserve-mode preservation" above - all empty, zero exceptions. No seed file was touched (`scripts/seed.ts`, `scripts/seed-demo-bookings.ts` both empty diff); no wave-05 commit forced a seed edit to keep tests green.
+3. **No new env vars**: `git diff 8d1a069..2926170 -- src/env.ts` is empty; the ENV RULE did not apply this wave (confirmed - `/api/booking-config` reads existing settings, introduces no env var).
+4. **No em dashes**: `git diff 8d1a069..HEAD | grep "^+" | grep "—"` initially caught ONE hit missed during commit 4's own review, an em-dash right after "GET /api/booking-config" in that route's own JSDoc comment (reviewed via a plain Read at the time rather than a dash grep); fixed in follow-up commit `2926170` rather than amending, per the no-amend rule. Re-ran the sweep after the fix: zero hits. The same check on all 10 commit messages: zero hits throughout.
+5. **`git status --short`** at the end of the dispatch: clean working tree.
+
+Gates after the wave: full suite 62 files / 345 tests green, `npx tsc --noEmit` clean, `npm run lint` clean (one pre-existing warning), migration smoke clean, incremental-upgrade regression green, working tree clean.
+
 ## Concerns / notes for later waves
 
 - The extension "send payment link" flow was never exercised against a real Stripe test-mode checkout in this dispatch (no dev server, no live Stripe call per the binding constraints). Coverage is unit/integration-level: `extend-booking.test.ts`'s mocked Stripe client for the happy path, and (since the review fix loop, commit `eba11fe`) a dedicated reserve-mode guard test in `reservation-mode.test.ts`. Task 7's full-gate manual smoke should include an extension paid by link.
@@ -482,4 +622,7 @@ Gates after the wave: full suite 58 files / 314 tests green, `npx tsc --noEmit` 
 - **New (wave 03):** `runComplianceAlerts` was only exercised through vitest's PGlite path with the WhatsApp/Resend env unset (best-effort no-op, matching the FD plan's own test note). The real owner-facing email + WhatsApp content has never rendered against a live Resend/WhatsApp send in this port. Task 7's full-gate manual smoke should trigger one real compliance alert (a vehicle dated a few days inside the warning window) against dev credentials if available, or explicitly defer that check to Task 9's live rollout.
 - **New (wave 03):** the Cloudflare cron dispatch (`wrangler.jsonc` + `worker/index.ts`) has never run against a real Cloudflare Worker (deploy is forbidden by the binding constraints). Verification was code review + verbatim match against the plan's block only. Task 9's runbook step "verify crons fired (`*/15` expire-holds, `0 9` compliance)" is the first point this actually gets exercised live.
 - Task 9's runbook (above) now carries the `NEXT_PUBLIC_SITE_NAME`/`NEXT_PUBLIC_SITE_URL`/`NEXT_PUBLIC_WHATSAPP_NUMBER` Dockerfile + wrangler.jsonc items alongside the wave-01 storage vars and the 0016 downtime note; nothing in this list has been executed.
-- No other blockers. Full suite green (314 tests), tsc clean, lint clean (one pre-existing warning), migration smoke clean, working tree clean.
+- **New (wave 04):** the fleet notes drawer, escalate-to-block flow, and the fleet-list search/chips/grouping were verified by code review + full suite + migration smoke only - no manual `npm run dev` walk was done this dispatch (no dev server, per the binding constraints). Task 7's full-gate manual smoke should include: add a make/model/year/color to a car and confirm the auto-composed name and its live-typing behavior, add two notes to a car and confirm the amber badge count on both the Fleet row and the planning-board label, resolve one and confirm the count drops, and escalate a note and confirm the resulting 7-day maintenance block appears under Blocks and on the planning board.
+- **New (wave 05):** the driver-age selector, live reprice quote, and the transparent price-update notice (including its reserve-mode-aware "confirm your reservation" wording) were verified by code review + full suite + migration smoke only - no manual `npm run dev` walk was done this dispatch. Task 7's full-gate manual smoke should include, in BOTH pay mode and reserve mode: book claiming "Age 18 to 20" with a licence DOB that is actually 21+ (or vice versa) and confirm the price-update notice appears with the corrected total, a second tap proceeds (to Stripe checkout in pay mode, straight to the confirmation page in reserve mode), and the confirmed booking's contract/email/summary all show the corrected (not the originally claimed) young-driver line.
+- **New (wave 05):** the `youngDriverAge`/`youngDriverFeeCentsPerDay` settings fields render correctly and persist (verified by code review + the existing `admin-settings.test.ts` coverage), but the actual owner-facing production values have not been confirmed - this is explicitly Task 6's job (see "Owner settings to confirm" above), not this dispatch's.
+- No other blockers. Full suite green (345 tests), tsc clean, lint clean (one pre-existing warning), migration smoke clean, working tree clean.
