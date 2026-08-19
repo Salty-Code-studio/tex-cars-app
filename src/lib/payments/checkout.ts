@@ -12,12 +12,17 @@ import { isUniqueViolation } from "@/lib/db/errors";
 import { bookings, payments, vehicles } from "@/lib/db/schema";
 import { Errors } from "@/lib/http/errors";
 import { getStripe } from "@/lib/payments/stripe-client";
-import { chargeForBooking, type PaymentOption } from "@/lib/payments/charge";
+import { chargeForBooking, type PaymentOption, type ChargeType } from "@/lib/payments/charge";
 import type { QuoteBreakdown } from "@/lib/booking/quote";
+import { formatDateTime } from "@/lib/time/format";
+import { siteConfig } from "@/lib/site-config";
 
-const LABEL: Record<"reservation_fee" | "deposit", string> = {
+const LABEL: Record<ChargeType, string> = {
   reservation_fee: "Reservation fee",
   deposit: "Security deposit",
+  rental_deposit: "Deposit to reserve",
+  rental_full: "Rental payment",
+  extension: "Extension payment",
 };
 
 export async function createBookingCheckout(bookingId: string, origin: string): Promise<{ url: string }> {
@@ -76,14 +81,14 @@ export async function createBookingCheckout(bookingId: string, origin: string): 
           currency: charge.currency.toLowerCase(),
           unit_amount: charge.amountCents,
           product_data: {
-            name: `${LABEL[charge.type]} — ${vehicle?.name ?? "Tex Cars rental"}`,
-            description: `${booking.startDate} to ${booking.endDate}`,
+            name: `${LABEL[charge.type]}: ${vehicle?.name ?? `${siteConfig.siteName} rental`}`,
+            description: `${formatDateTime(booking.startAt)} to ${formatDateTime(booking.endAt)}`,
           },
         },
       }],
       metadata: { bookingId: booking.id, paymentType: charge.type },
       success_url: `${origin}/book/confirmation?id=${booking.id}`,
-      cancel_url: `${origin}/book?canceled=1`,
+      cancel_url: `${origin}/book?canceled=1&id=${booking.id}`,
     });
 
     if (!session.url) throw Errors.badRequest("Could not start checkout");
@@ -97,6 +102,7 @@ export async function createBookingCheckout(bookingId: string, origin: string): 
         bookingId: booking.id,
         stripeCheckoutSessionId: session.id,
         type: charge.type,
+        method: "stripe",
         amountCents: charge.amountCents,
         currency: charge.currency,
         status: "pending",
@@ -108,4 +114,68 @@ export async function createBookingCheckout(bookingId: string, origin: string): 
 
     return { url: session.url };
   });
+}
+
+/**
+ * Checkout for an already-applied rental extension. Sibling of
+ * createBookingCheckout: the booking dates were extended synchronously (the
+ * desk decided "pay by link"), and THIS stands up a hosted Checkout for just the
+ * delta plus a pending extension payment row. The signed webhook settles that
+ * row and credits amountPaidCents (see webhook.ts, extension branch); nothing
+ * here confirms money. `deltaCents` is the server-computed delta from
+ * extendBooking — never a client amount.
+ */
+export async function createExtensionCheckout(
+  booking: typeof bookings.$inferSelect,
+  deltaCents: number,
+): Promise<{ url: string }> {
+  // Same pay-at-desk guard as createBookingCheckout: no Stripe client exists in
+  // reserve mode. The dates were already extended by the caller (extendBooking)
+  // before this runs, same as any other post-commit Stripe failure here would
+  // leave them; the desk still has the "desk" payment option for this booking.
+  if (env.PAYMENT_MODE === "reserve") {
+    throw Errors.conflict("Online payment is disabled");
+  }
+
+  const db = await getDb();
+  const stripe = getStripe();
+  const breakdown = booking.priceBreakdown as QuoteBreakdown;
+  const currency = breakdown.currency;
+  const [vehicle] = await db.select({ name: vehicles.name }).from(vehicles).where(eq(vehicles.id, booking.vehicleId));
+
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    line_items: [{
+      quantity: 1,
+      price_data: {
+        currency: currency.toLowerCase(),
+        unit_amount: deltaCents,
+        product_data: {
+          name: `Rental extension: ${vehicle?.name ?? `${siteConfig.siteName} rental`}`,
+          description: `${formatDateTime(booking.startAt)} to ${formatDateTime(booking.endAt)}`,
+        },
+      },
+    }],
+    metadata: { bookingId: booking.id, paymentType: "extension" },
+    success_url: `${siteConfig.siteUrl}/book/confirmation?id=${booking.id}`,
+    cancel_url: `${siteConfig.siteUrl}/book/confirmation?id=${booking.id}`,
+  });
+  if (!session.url) throw Errors.badRequest("Could not start checkout");
+
+  try {
+    await db.insert(payments).values({
+      bookingId: booking.id,
+      stripeCheckoutSessionId: session.id,
+      type: "extension",
+      method: "stripe",
+      amountCents: deltaCents,
+      currency,
+      status: "pending",
+    });
+  } catch (e) {
+    if (isUniqueViolation(e)) throw Errors.conflict("A payment for this booking is already in progress");
+    throw e;
+  }
+
+  return { url: session.url };
 }

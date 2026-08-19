@@ -2,19 +2,41 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { apiGet, api, apiPatch, apiDelete, type ApiError } from "../client";
+import {
+  Modal,
+  Skeleton,
+  EmptyState,
+  useToast,
+  useConfirm,
+  registerPaletteAction,
+  type ConfirmFn,
+} from "@/app/admin/_ui";
+import { DatePicker, MoneyInput, Select, TimeSelect } from "@/components/ui";
+import { atAruba, arubaDateOf, arubaTimeOf, arubaNowIso, formatTime, parseTs } from "@/lib/time/format";
+import { barSpan, barState } from "@/lib/admin/bar-span";
+import { hourSpan } from "@/lib/admin/hour-grid";
+import { createDragClickGuard, type DragClickGuard } from "@/lib/admin/drag-click-guard";
+import { BookingDrawer } from "./booking-drawer";
+import "./dashboard.css";
 
-interface Bar { id: string; start: string; end: string; status: string; source: string; label: string; notes: string | null }
-interface Block { id: string; start: string; end: string; type: string; reason: string }
-interface Vehicle { id: string; name: string; slug: string; plate: string; class: string; bookings: Bar[]; blocks: Block[] }
+interface Bar { id: string; start: string; end: string; startAt: string; endAt: string; status: string; source: string; label: string; notes: string | null }
+interface Block { id: string; start: string; end: string; startAt: string; endAt: string; type: string; reason: string }
+interface Vehicle { id: string; name: string; slug: string; plate: string; class: string; openNotes: number; bookings: Bar[]; blocks: Block[] }
 interface Category { class: string; vehicles: Vehicle[] }
 interface Planning {
   from: string; to: string; days: string[];
   categories: Category[];
   blackouts: { id: string; start: string; end: string; reason: string }[];
 }
+interface ComplianceItem { vehicleId: string; name: string; plate: string; kind: "insurance" | "inspection"; dueOn: string; daysLeft: number }
 
 const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const BLOCK_TYPES = ["maintenance", "carwash", "cleaning", "out_of_service", "other"];
+const zoomTitle = (d: string) => {
+  const dt = new Date(`${d}T00:00:00Z`);
+  return `${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dt.getUTCDay()]} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][dt.getUTCMonth()]} ${dt.getUTCDate()}`;
+};
 const dayIdx = (from: string, d: string) => Math.round((Date.parse(`${d}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 const isWeekend = (d: string) => { const g = new Date(`${d}T00:00:00Z`).getUTCDay(); return g === 0 || g === 6; };
 const addDays = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -23,11 +45,10 @@ const niceType = (t: string) => t.replace(/_/g, " ");
 // In-flight pointer gesture. Kept in a ref so pointermove/up never depend on React state timing.
 type Gesture =
   | { kind: "select"; vehicleId: string; plate: string; name: string; anchorDay: number; moved: boolean; startX: number; startY: number }
-  | { kind: "move"; bookingId: string; originVehicleId: string; origStart: string; lenDays: number; grabDay: number; moved: boolean; startX: number; startY: number };
+  | { kind: "move"; bookingId: string; originVehicleId: string; origStart: string; origStartAt: string; origEndAt: string; lenDays: number; grabDay: number; moved: boolean; startX: number; startY: number };
 
 type Popover =
   | { kind: "create"; vehicleId: string; plate: string; name: string; startDate: string; endDate: string; x: number; y: number }
-  | { kind: "booking"; bar: Bar; vehicleId: string; x: number; y: number }
   | { kind: "block"; block: Block; x: number; y: number };
 
 export default function AdminDashboard() {
@@ -35,27 +56,64 @@ export default function AdminDashboard() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState("");
   const [popover, setPopover] = useState<Popover | null>(null);
+  const [drawerBookingId, setDrawerBookingId] = useState<string | null>(null);
   const [showService, setShowService] = useState(false);
+  // When set, the board zooms from the multi-day view into one day's hour grid.
+  const [zoomDay, setZoomDay] = useState<string | null>(null);
   // live drag previews (re-rendered): a selection rectangle, or a moving booking ghost
   const [sel, setSel] = useState<{ vehicleId: string; startDate: string; endDate: string } | null>(null);
   const [moveCand, setMoveCand] = useState<{ bookingId: string; vehicleId: string; startDate: string; endDate: string } | null>(null);
+  const [compliance, setCompliance] = useState<ComplianceItem[]>([]);
+
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const today = useMemo(() => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Aruba" }).format(new Date()), []);
+  const nowIso = arubaNowIso(); // recomputed each render so bar states (due-back / overdue) stay fresh
+
   const gestureRef = useRef<Gesture | null>(null);
   const trackRectRef = useRef<DOMRect | null>(null);
+  // Swallows the browser's synthetic click that follows a real drag, so a
+  // drag-move doesn't re-open the BookingDrawer right after it moved (see
+  // drag-click-guard.ts for the full story). Lazily created once per mount:
+  // `useRef(createDragClickGuard())` would call the factory on every render
+  // (only the first result is ever kept), which is wasteful busywork.
+  const dragClickGuardRef = useRef<DragClickGuard | null>(null);
+  if (dragClickGuardRef.current === null) dragClickGuardRef.current = createDragClickGuard();
+  const dragClickGuard = dragClickGuardRef.current;
 
   async function load(f?: string, t?: string) {
     setLoading(true);
+    setZoomDay(null); // any range change drops back to the multi-day view
     const qs = f && t ? `?from=${f}&to=${t}` : "";
     try {
       const d = await apiGet<Planning>(`/api/admin/planning${qs}`);
       setData(d); setFrom(d.from); setTo(d.to);
-    } catch (e) { setMsg((e as ApiError).message); }
+    } catch (e) { toast.show({ type: "error", message: (e as ApiError).message }); }
     setLoading(false);
   }
   useEffect(() => { void load(); }, []);
+
+  // Compliance card data. Best-effort: the board must render even if this call fails.
+  useEffect(() => {
+    apiGet<{ items: ComplianceItem[] }>("/api/admin/compliance")
+      .then((d) => setCompliance(d.items))
+      .catch(() => {});
+  }, []);
+
+  // Page-scoped command-palette action: "Schedule service".
+  useEffect(
+    () =>
+      registerPaletteAction({
+        id: "planning-service",
+        label: "Schedule service",
+        hint: "Planning",
+        keywords: "service maintenance carwash cleaning block off road planning",
+        run: () => setShowService(true),
+      }),
+    [],
+  );
 
   const N = data?.days.length ?? 0;
   const flatVehicles = useMemo(() => data ? data.categories.flatMap((c) => c.vehicles) : [], [data]);
@@ -83,6 +141,10 @@ export default function AdminDashboard() {
   function beginGesture(e: ReactPointerEvent, trackEl: HTMLElement, g: Gesture) {
     trackRectRef.current = trackEl.getBoundingClientRect();
     gestureRef.current = g;
+    // Drop any stale armed state a previous gesture left behind (its echo
+    // click may never have reached a guarded onClick), so it can't wrongly
+    // swallow a click from this brand-new interaction.
+    dragClickGuard.reset();
     const cleanup = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
@@ -123,6 +185,12 @@ export default function AdminDashboard() {
     const g = gestureRef.current;
     gestureRef.current = null;
     if (!g) return;
+    // A real drag (select-to-create or move) is about to be followed by the
+    // browser's own synthetic click on whatever sits under the pointer. Arm
+    // the guard now, synchronously: gestureRef is already null by the time
+    // that click fires, so it can no longer tell "just dragged" from "plain
+    // click" on its own.
+    if (g.moved) dragClickGuard.armAfterMove();
     if (g.kind === "select") {
       const anchor = g.anchorDay;
       const cur = g.moved ? dayAt(ev.clientX) : anchor;
@@ -133,36 +201,68 @@ export default function AdminDashboard() {
     } else {
       setMoveCand(null);
       if (!g.moved) return; // a plain click is handled by the bar's onClick (detail popover)
-      // Recompute the drop position from the gesture ref + this event — NOT from
+      // Recompute the drop position from the gesture ref + this event, NOT from
       // the moveCand React state, which is stale-null inside the pointer-down
       // closure that registered this listener (the ghost state never reaches here).
       const cur = dayAt(ev.clientX);
-      const newStart = addDays(from, dayIdx(from, g.origStart) + (cur - g.grabDay));
-      const newEnd = addDays(newStart, g.lenDays);
+      const delta = cur - g.grabDay;
+      const newStart = addDays(g.origStart, delta);
       const veh = vehicleAt(ev.clientX, ev.clientY) ?? g.originVehicleId;
       if (veh === g.originVehicleId && newStart === g.origStart) return; // unchanged → no-op
-      const body: Record<string, string> = { startDate: newStart, endDate: newEnd };
+      // Keep each bar's original pick-up/return times; shift both dates by the drag delta.
+      const startAt = atAruba(newStart, arubaTimeOf(g.origStartAt));
+      const endAt = atAruba(addDays(arubaDateOf(g.origEndAt), delta), arubaTimeOf(g.origEndAt));
+      const body: Record<string, string> = { startAt, endAt };
       if (veh !== g.originVehicleId) body.vehicleId = veh;
       try {
         await apiPatch(`/api/admin/bookings/${g.bookingId}/move`, body);
-        setMsg("Moved.");
-        await load(from, to);
+        toast.show({ type: "success", message: "Moved." });
       } catch (e) {
-        setMsg((e as ApiError).message); // 409 → "Those dates overlap…"; board reloads to the true state
-        await load(from, to);
+        const err = e as ApiError;
+        if (err.code === "advisory_conflict") {
+          // Block/blackout collision, not a real double-booking — offer an
+          // explicit override rather than just bouncing the drag.
+          const ok = await confirm({ title: "Car unavailable", message: err.message, confirmLabel: "Book anyway", danger: true });
+          if (ok) {
+            try {
+              await apiPatch(`/api/admin/bookings/${g.bookingId}/move`, { ...body, override: true });
+              toast.show({ type: "success", message: "Moved." });
+            } catch (e2) {
+              toast.show({ type: "error", message: (e2 as ApiError).message });
+            }
+          }
+        } else {
+          toast.show({ type: "error", message: err.message }); // 409 → "Those dates overlap…"; board reloads to the true state
+        }
       }
+      await load(from, to);
     }
   }
 
   function onBarPointerDown(e: ReactPointerEvent, v: Vehicle, b: Bar) {
-    if (e.button !== 0 || b.status === "completed") return;
+    // Every pointerdown on a bar starts a fresh interaction: drop any stale
+    // armed guard state a previous gesture left behind, before any early return.
+    // Without this reset a guard armed by an earlier gesture (e.g. a touch
+    // drag-to-create) stays armed and wrongly swallows the next plain tap's
+    // click on this bar, leaving the drawer stuck closed.
+    dragClickGuard.reset();
+    if (e.button !== 0) return; // right/middle press is not our gesture
+    // A press on a bar always belongs to the bar, never the empty track beneath
+    // it: stop it here so it can never start the track's "drag to create a
+    // rental" gesture. Without this, dragging (or even clicking) a bar that
+    // can't be moved popped the New-rental menu on top of the existing booking.
     e.stopPropagation();
+    // Only pending/confirmed bookings can be dragged to move (the backend rejects
+    // the rest); a picked-up car is out with the customer, a completed one is
+    // done. Those still open their detail on click, where "Swap car" lives.
+    if (b.status === "completed" || b.status === "picked_up") return;
     const track = (e.currentTarget as HTMLElement).closest<HTMLElement>(".pl-track");
     if (!track) return;
     trackRectRef.current = track.getBoundingClientRect();
     if (e.pointerType === "touch") return; // touch falls back to the click → detail/move form
     beginGesture(e, track, {
       kind: "move", bookingId: b.id, originVehicleId: v.id, origStart: b.start,
+      origStartAt: b.startAt, origEndAt: b.endAt,
       lenDays: dayIdx(from, b.end) - dayIdx(from, b.start), grabDay: dayAt(e.clientX),
       moved: false, startX: e.clientX, startY: e.clientY,
     });
@@ -190,8 +290,13 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <h1>Planning board</h1>
-      <p className="sub">Drag an empty stretch to add a rental or block. Drag a booking to move its dates or drop it on another car. Click a booking to see details or cancel.</p>
+      <header className="pl-page-head">
+        <div className="pl-page-head__lead">
+          <h1>Planning board</h1>
+          <p className="sub">Drag an empty stretch to add a rental or block. Drag a booking to move its dates or drop it on another car. Click a booking to see details or cancel.</p>
+        </div>
+        <button type="button" className="btn btn--accent pl-head-action" onClick={() => setShowService(true)}>Schedule service</button>
+      </header>
 
       <div className="stat-strip">
         <div className="s"><b>{stats.vehicles}</b><span>active vehicles</span></div>
@@ -200,32 +305,137 @@ export default function AdminDashboard() {
         <div className="s"><b>{stats.pending}</b><span>awaiting payment</span></div>
       </div>
 
+      {compliance.length > 0 && (
+        <div className="panel pl-compliance" role="status">
+          <div className="pl-compliance__head">
+            <h2>Compliance</h2>
+            <a href="/admin/fleet">Open Fleet</a>
+          </div>
+          <ul>
+            {compliance.map((c) => (
+              <li key={`${c.vehicleId}-${c.kind}`}>
+                <span className={`tag ${c.daysLeft < 0 ? "off" : "warn"}`}>
+                  {c.kind === "insurance" ? "Insurance" : "Inspection"} {c.daysLeft < 0 ? "overdue" : `${c.daysLeft}d`}
+                </span>
+                <b>{c.plate}</b> <small>{c.name}</small>
+                <span className="pl-compliance__due">due {c.dueOn}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="pl-toolbar">
-        <label>From <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label>To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        <label>From <DatePicker value={from} onChange={setFrom} /></label>
+        <label>To <DatePicker value={to} onChange={setTo} /></label>
         <button className="btn" onClick={() => load(from, to)}>Apply</button>
         <button className="btn btn--quiet" onClick={() => load(today, addDays(today, 13))}>Next 2 weeks</button>
         <button className="btn btn--quiet" onClick={() => load(today, addDays(today, 29))}>Next month</button>
         <button className="btn btn--quiet" onClick={() => data && load(addDays(data.from, -7), addDays(data.to, -7))}>◀ back</button>
         <button className="btn btn--quiet" onClick={() => data && load(addDays(data.from, 7), addDays(data.to, 7))}>forward ▶</button>
-        <button className="btn btn--service" onClick={() => setShowService(true)}>+ Schedule service</button>
-        {msg && <span className="pl-msg" role="status">{msg}</span>}
         <div className="pl-legend">
-          <span><i className="pl-swatch" style={{ background: "#2348c7" }} /> confirmed</span>
-          <span><i className="pl-swatch" style={{ background: "#f6a609" }} /> pending</span>
-          <span><i className="pl-swatch" style={{ background: "#0f7b4d" }} /> completed</span>
+          <span><i className="pl-swatch" style={{ background: "#F6A609" }} /> pending</span>
+          <span><i className="pl-swatch" style={{ background: "#15192F" }} /> confirmed</span>
+          <span><i className="pl-swatch" style={{ background: "#2C5F8A" }} /> with customer</span>
+          <span><i className="pl-swatch" style={{ background: "#2C5F8A", outline: "2px solid #F6A609", outlineOffset: "-2px" }} /> due back soon</span>
+          <span><i className="pl-swatch" style={{ background: "#8A2C2C" }} /> overdue</span>
+          <span><i className="pl-swatch" style={{ background: "#0F7B4D" }} /> completed</span>
           <span><i className="pl-swatch" style={{ background: "#9aa2c0" }} /> blocked</span>
         </div>
       </div>
 
-      {loading || !data ? <p className="muted">Loading the fleet…</p> : (
+      {loading || !data ? (
+        <div className="pl-wrap" aria-busy="true" aria-label="Loading the fleet">
+          <div className="pl pl-skel">
+            <div className="pl-head">
+              <div className="pl-corner">Vehicle</div>
+              <div className="pl-days pl-skel-days">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <div key={i} className="pl-day"><Skeleton width="60%" height={10} /><Skeleton width="42%" height={12} style={{ marginTop: 4 }} /></div>
+                ))}
+              </div>
+            </div>
+            {Array.from({ length: 5 }).map((_, r) => (
+              <div className="pl-row" key={r}>
+                <div className="pl-label"><Skeleton width="60%" height={12} /><Skeleton width="80%" height={9} style={{ marginTop: 5 }} /></div>
+                <div className="pl-track pl-skel-track">
+                  <Skeleton width={`${28 + (r % 3) * 14}%`} height={30} radius={8} style={{ position: "absolute", top: 8, left: `${(r * 11) % 40}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : data.categories.length === 0 ? (
+        <EmptyState
+          title="No vehicles yet"
+          hint="Add cars under Fleet and pricing, then they show up here ready to schedule."
+          action={<a className="btn btn--accent" href="/admin/fleet">Go to Fleet</a>}
+        />
+      ) : zoomDay ? (
+        <>
+          <div className="pl-zoombar">
+            <button className="btn btn--quiet" onClick={() => setZoomDay(null)}>‹ Back to week</button>
+            <button className="btn btn--quiet" disabled={zoomDay <= data.from} onClick={() => setZoomDay(addDays(zoomDay, -1))} aria-label="Previous day">◀</button>
+            <strong className="pl-zoomtitle">{zoomTitle(zoomDay)}</strong>
+            <button className="btn btn--quiet" disabled={zoomDay >= data.to} onClick={() => setZoomDay(addDays(zoomDay, 1))} aria-label="Next day">▶</button>
+            <span className="pl-zoomhint">Pick-up &amp; return times (Aruba local)</span>
+          </div>
+          <div className="pl-wrap">
+            <div className="pl pl--hours">
+              <div className="pl-head">
+                <div className="pl-corner">Vehicle</div>
+                <div className="pl-days">
+                  {HOURS.map((h) => (
+                    <div key={h} className={`pl-day ${zoomDay === today && h === Number(formatTime(nowIso).slice(0, 2)) ? "today" : ""}`}>
+                      <div className="dnum">{String(h).padStart(2, "0")}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {data.categories.map((cat) => (
+                <div key={cat.class}>
+                  <div className="pl-cat">{cat.class}</div>
+                  {cat.vehicles.map((v) => (
+                    <div className="pl-row" key={v.id}>
+                      <div className="pl-label"><b>{v.plate}</b><small>{v.name}</small></div>
+                      <div className="pl-track">
+                        <div className="pl-cells">{HOURS.map((h) => <div key={h} className="c" />)}</div>
+                        {v.blocks.map((bl) => {
+                          const s = hourSpan(zoomDay!, bl.startAt, bl.endAt);
+                          return s ? (
+                            <div key={bl.id} className={`pl-block pl-block--${bl.type}`} style={{ left: `${s.left}%`, width: `${s.width}%` }} title={`${niceType(bl.type)}${bl.reason ? " · " + bl.reason : ""}`}>{niceType(bl.type)}</div>
+                          ) : null;
+                        })}
+                        {v.bookings.map((b) => {
+                          const s = hourSpan(zoomDay!, b.startAt, b.endAt);
+                          if (!s) return null;
+                          return (
+                            <div key={b.id} className={`pl-bar pl-bar--${barState(b, nowIso)} pl-bar--zoom ${b.source === "manual" ? "manual" : ""}`} style={{ left: `${s.left}%`, width: `${s.width}%` }}
+                              title={`${b.label} · ${formatTime(b.startAt)} to ${formatTime(b.endAt)} · ${b.status}`}
+                              onClick={() => setDrawerBookingId(b.id)}>
+                              {s.cutStart ? "‹ " : `${formatTime(b.startAt)} · `}{b.label}{s.cutEnd ? " ›" : ` · ${formatTime(b.endAt)}`}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
         <div className="pl-wrap">
           <div className="pl">
             <div className="pl-head">
               <div className="pl-corner">Vehicle</div>
               <div className="pl-days">
                 {data.days.map((d) => (
-                  <div key={d} className={`pl-day ${isWeekend(d) ? "weekend" : ""} ${d === today ? "today" : ""}`}>
+                  <div key={d} role="button" tabIndex={0} title="Zoom into this day's hours"
+                    className={`pl-day pl-day--btn ${isWeekend(d) ? "weekend" : ""} ${d === today ? "today" : ""}`}
+                    onClick={() => setZoomDay(d)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setZoomDay(d); } }}>
                     <div className="dow">{DOW[new Date(`${d}T00:00:00Z`).getUTCDay()]}</div>
                     <div className="dnum">{Number(d.slice(8, 10))}</div>
                   </div>
@@ -233,13 +443,12 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {data.categories.length === 0 && <div className="pl-empty">No vehicles yet. Add some under Fleet &amp; pricing.</div>}
             {data.categories.map((cat) => (
               <div key={cat.class}>
                 <div className="pl-cat">{cat.class}</div>
                 {cat.vehicles.map((v) => (
                   <div className="pl-row" key={v.id}>
-                    <div className="pl-label"><b>{v.plate}</b><small>{v.name}</small></div>
+                    <div className="pl-label"><b>{v.plate}{v.openNotes > 0 && <span className="pl-note-badge" title={`${v.openNotes} open ${v.openNotes === 1 ? "note" : "notes"}`}>{v.openNotes}</span>}</b><small>{v.name}</small></div>
                     <div
                       className="pl-track"
                       data-vehicle={v.id}
@@ -253,9 +462,9 @@ export default function AdminDashboard() {
                         return s ? <div key={`bo-${v.id}-${bo.id}`} className="pl-blackout" style={s} title={bo.reason} /> : null;
                       })}
                       {v.blocks.map((bl) => {
-                        const s = span(bl.start, bl.end);
+                        const s = barSpan(data.days, bl.startAt, bl.endAt);
                         return s ? (
-                          <div key={bl.id} className={`pl-block pl-block--${bl.type}`} style={s} title={`${niceType(bl.type)}${bl.reason ? " · " + bl.reason : ""}`}
+                          <div key={bl.id} className={`pl-block pl-block--${bl.type}`} style={{ left: `${s.left}%`, width: `${s.width}%` }} title={`${niceType(bl.type)}${bl.reason ? " · " + bl.reason : ""}`}
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => setPopover({ kind: "block", block: bl, x: e.clientX, y: e.clientY })}>
                             {niceType(bl.type)}
@@ -264,12 +473,12 @@ export default function AdminDashboard() {
                       })}
                       {v.bookings.map((b) => {
                         const dimmed = moveCand?.bookingId === b.id;
-                        const s = span(b.start, b.end);
+                        const s = barSpan(data.days, b.startAt, b.endAt);
                         return s ? (
-                          <div key={b.id} className={`pl-bar ${b.status} ${dimmed ? "dragging" : ""} ${b.source === "manual" ? "manual" : ""}`} style={s}
-                            title={`${b.label} · ${b.start} to ${b.end} · ${b.status}${b.source === "manual" ? " · manual" : ""}`}
+                          <div key={b.id} className={`pl-bar pl-bar--${barState(b, nowIso)} ${dimmed ? "dragging" : ""} ${b.source === "manual" ? "manual" : ""}`} style={{ left: `${s.left}%`, width: `${s.width}%` }}
+                            title={`${b.label} · ${formatTime(b.startAt)} to ${formatTime(b.endAt)} · ${b.status}${b.source === "manual" ? " · manual" : ""}`}
                             onPointerDown={(e) => onBarPointerDown(e, v, b)}
-                            onClick={(e) => { if (!gestureRef.current) setPopover({ kind: "booking", bar: b, vehicleId: v.id, x: e.clientX, y: e.clientY }); }}>
+                            onClick={() => { if (dragClickGuard.consumeSuppressed()) return; setDrawerBookingId(b.id); }}>
                             {b.label}
                           </div>
                         ) : null;
@@ -290,31 +499,36 @@ export default function AdminDashboard() {
       {popover && (
         <BoardPopover
           popover={popover}
-          vehicles={flatVehicles}
+          confirm={confirm}
           onClose={() => setPopover(null)}
-          onDone={async (m) => { setPopover(null); if (m) setMsg(m); await load(from, to); }}
-          onError={(m) => setMsg(m)}
+          onDone={async (m) => { setPopover(null); if (m) toast.show({ type: "success", message: m }); await load(from, to); }}
+          onError={(m) => toast.show({ type: "error", message: m })}
         />
       )}
 
-      {showService && (
-        <ServiceModal
-          vehicles={flatVehicles}
-          defaultDate={today}
-          onClose={() => setShowService(false)}
-          onDone={async (m) => { setShowService(false); if (m) setMsg(m); await load(from, to); }}
-          onError={(m) => setMsg(m)}
-        />
-      )}
+      <BookingDrawer
+        bookingId={drawerBookingId}
+        onClose={() => setDrawerBookingId(null)}
+        onChanged={() => load(from, to)}
+      />
+
+      <ServiceModal
+        open={showService}
+        vehicles={flatVehicles}
+        defaultDate={today}
+        onClose={() => setShowService(false)}
+        onDone={async (m) => { setShowService(false); if (m) toast.show({ type: "success", message: m }); await load(from, to); }}
+        onError={(m) => toast.show({ type: "error", message: m })}
+      />
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-function BoardPopover({ popover, vehicles, onClose, onDone, onError }: {
+function BoardPopover({ popover, confirm, onClose, onDone, onError }: {
   popover: Popover;
-  vehicles: Vehicle[];
+  confirm: ConfirmFn;
   onClose: () => void;
   onDone: (msg?: string) => Promise<void> | void;
   onError: (msg: string) => void;
@@ -324,7 +538,7 @@ function BoardPopover({ popover, vehicles, onClose, onDone, onError }: {
 
   // Position the popover near the click, but keep it FULLY on screen: clamp
   // horizontally, and flip it above the anchor when it would run off the bottom
-  // (the bug in the screenshot — the form's submit button was below the fold).
+  // (the bug in the screenshot: the form's submit button was below the fold).
   // A ResizeObserver re-places it when the form grows (e.g. choosing "New
   // rental" reveals more fields), and the CSS caps height + scrolls if needed.
   useLayoutEffect(() => {
@@ -355,43 +569,64 @@ function BoardPopover({ popover, vehicles, onClose, onDone, onError }: {
     <>
       <div className="pl-backdrop" onClick={onClose} />
       <div ref={ref} className="pl-pop" style={style} role="dialog">
-        {popover.kind === "create" && <CreatePanel p={popover} onDone={onDone} onError={onError} onClose={onClose} />}
-        {popover.kind === "booking" && <BookingPanel p={popover} vehicles={vehicles} onDone={onDone} onError={onError} onClose={onClose} />}
-        {popover.kind === "block" && <BlockPanel p={popover} onDone={onDone} onError={onError} />}
+        {popover.kind === "create" && <CreatePanel p={popover} confirm={confirm} onDone={onDone} onError={onError} onClose={onClose} />}
+        {popover.kind === "block" && <BlockPanel p={popover} confirm={confirm} onDone={onDone} onError={onError} />}
       </div>
     </>
   );
 }
 
-function CreatePanel({ p, onDone, onError, onClose }: {
+function CreatePanel({ p, confirm, onDone, onError, onClose }: {
   p: Extract<Popover, { kind: "create" }>;
+  confirm: ConfirmFn;
   onDone: (msg?: string) => Promise<void> | void;
   onError: (msg: string) => void;
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<"choose" | "rental" | "block">("choose");
   const [busy, setBusy] = useState(false);
-  const [r, setR] = useState({ name: "", phone: "", email: "", price: "", notes: "" });
+  const [r, setR] = useState({ name: "", phone: "", email: "", priceCents: null as number | null, notes: "" });
+  const [times, setTimes] = useState({ pickup: "09:00", ret: "09:00" });
   const [b, setB] = useState({ type: "maintenance", reason: "" });
   const range = `${p.startDate} → ${p.endDate} (return)`;
 
   async function submitRental(e: React.FormEvent) {
     e.preventDefault(); setBusy(true);
+    const payload = {
+      vehicleId: p.vehicleId,
+      startAt: atAruba(p.startDate, times.pickup), endAt: atAruba(p.endDate, times.ret),
+      customerName: r.name, customerPhone: r.phone,
+      ...(r.email ? { customerEmail: r.email } : {}),
+      ...(r.priceCents !== null ? { priceCents: r.priceCents } : {}),
+      ...(r.notes ? { notes: r.notes } : {}),
+    };
     try {
-      await api("/api/admin/bookings", {
-        vehicleId: p.vehicleId, startDate: p.startDate, endDate: p.endDate,
-        customerName: r.name, customerPhone: r.phone,
-        ...(r.email ? { customerEmail: r.email } : {}),
-        ...(r.price ? { priceCents: Math.round(Number(r.price) * 100) } : {}),
-        ...(r.notes ? { notes: r.notes } : {}),
-      });
+      await api("/api/admin/bookings", payload);
       await onDone("Rental added.");
-    } catch (err) { onError((err as ApiError).message); setBusy(false); }
+    } catch (err) {
+      const e2 = err as ApiError;
+      if (e2.code === "advisory_conflict") {
+        // Block/blackout collision, not a real double-booking — offer an
+        // explicit override rather than just failing the form.
+        const ok = await confirm({ title: "Car unavailable", message: e2.message, confirmLabel: "Book anyway", danger: true });
+        if (ok) {
+          try {
+            await api("/api/admin/bookings", { ...payload, override: true });
+            await onDone("Rental added.");
+            return;
+          } catch (err2) { onError((err2 as ApiError).message); }
+        }
+        setBusy(false);
+        return;
+      }
+      onError(e2.message); setBusy(false);
+    }
   }
   async function submitBlock(e: React.FormEvent) {
     e.preventDefault(); setBusy(true);
     try {
-      await api(`/api/admin/vehicles/${p.vehicleId}/blocks`, { startDate: p.startDate, endDate: p.endDate, type: b.type, reason: b.reason });
+      // Drag-created blocks span whole days, so start and end sit at 00:00.
+      await api(`/api/admin/vehicles/${p.vehicleId}/blocks`, { startAt: atAruba(p.startDate, "00:00"), endAt: atAruba(p.endDate, "00:00"), type: b.type, reason: b.reason });
       await onDone("Car blocked.");
     } catch (err) { onError((err as ApiError).message); setBusy(false); }
   }
@@ -401,7 +636,7 @@ function CreatePanel({ p, onDone, onError, onClose }: {
       <div className="pl-pop-head"><b>{p.plate}</b> <small>{p.name}</small><span className="pl-pop-range">{range}</span></div>
       {tab === "choose" && (
         <div className="pl-pop-actions">
-          <button className="btn" onClick={() => setTab("rental")}>New rental</button>
+          <button className="btn btn--quiet" onClick={() => setTab("rental")}>New rental</button>
           <button className="btn btn--quiet" onClick={() => setTab("block")}>Block car</button>
           <button className="btn btn--quiet" onClick={onClose}>Cancel</button>
         </div>
@@ -409,22 +644,26 @@ function CreatePanel({ p, onDone, onError, onClose }: {
       {tab === "rental" && (
         <form className="pl-form" onSubmit={submitRental}>
           <label>Customer name<input required autoFocus value={r.name} onChange={(e) => setR({ ...r, name: e.target.value })} /></label>
+          <div className="pl-service-dates">
+            <label>Pick-up time<TimeSelect value={times.pickup} onChange={(t) => setTimes({ ...times, pickup: t })} /></label>
+            <label>Return time<TimeSelect value={times.ret} onChange={(t) => setTimes({ ...times, ret: t })} /></label>
+          </div>
           <label>Phone<input value={r.phone} onChange={(e) => setR({ ...r, phone: e.target.value })} placeholder="+297 …" /></label>
           <label>Email (optional)<input type="email" value={r.email} onChange={(e) => setR({ ...r, email: e.target.value })} /></label>
-          <label>Price (USD, optional)<input type="number" step="0.01" min="0" value={r.price} onChange={(e) => setR({ ...r, price: e.target.value })} /></label>
+          <label>Price (USD, optional)<MoneyInput cents={r.priceCents} ariaLabel="Price (USD, optional)" onChange={(cents) => setR({ ...r, priceCents: cents })} /></label>
           <label>Note (optional)<input value={r.notes} onChange={(e) => setR({ ...r, notes: e.target.value })} placeholder="paid cash at desk" /></label>
           <div className="pl-pop-actions">
-            <button className="btn" disabled={busy}>{busy ? "Saving…" : "Add rental"}</button>
+            <button className="btn btn--accent" disabled={busy}>{busy ? "Saving…" : "Add rental"}</button>
             <button type="button" className="btn btn--quiet" onClick={() => setTab("choose")}>Back</button>
           </div>
         </form>
       )}
       {tab === "block" && (
         <form className="pl-form" onSubmit={submitBlock}>
-          <label>Type<select value={b.type} onChange={(e) => setB({ ...b, type: e.target.value })}>{BLOCK_TYPES.map((t) => <option key={t} value={t}>{niceType(t)}</option>)}</select></label>
+          <label>Type<Select value={b.type} onChange={(v) => setB({ ...b, type: v })} options={BLOCK_TYPES.map((t) => ({ value: t, label: niceType(t) }))} /></label>
           <label>Note (optional)<input value={b.reason} onChange={(e) => setB({ ...b, reason: e.target.value })} /></label>
           <div className="pl-pop-actions">
-            <button className="btn" disabled={busy}>{busy ? "Saving…" : "Block car"}</button>
+            <button className="btn btn--accent" disabled={busy}>{busy ? "Saving…" : "Block car"}</button>
             <button type="button" className="btn btn--quiet" onClick={() => setTab("choose")}>Back</button>
           </div>
         </form>
@@ -433,69 +672,23 @@ function CreatePanel({ p, onDone, onError, onClose }: {
   );
 }
 
-function BookingPanel({ p, vehicles, onDone, onError, onClose }: {
-  p: Extract<Popover, { kind: "booking" }>;
-  vehicles: Vehicle[];
-  onDone: (msg?: string) => Promise<void> | void;
-  onError: (msg: string) => void;
-  onClose: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [mv, setMv] = useState({ vehicleId: p.vehicleId, startDate: p.bar.start, endDate: p.bar.end });
-  const [showMove, setShowMove] = useState(false);
-
-  async function cancel() {
-    if (busy) return; setBusy(true);
-    try { await api(`/api/admin/bookings/${p.bar.id}/cancel`, {}); await onDone("Booking cancelled."); }
-    catch (err) { onError((err as ApiError).message); setBusy(false); }
-  }
-  async function confirm() {
-    if (busy) return; setBusy(true);
-    try { await api(`/api/admin/bookings/${p.bar.id}/confirm`, {}); await onDone("Reservation confirmed."); }
-    catch (err) { onError((err as ApiError).message); setBusy(false); }
-  }
-  async function move(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true);
-    try {
-      await apiPatch(`/api/admin/bookings/${p.bar.id}/move`, { vehicleId: mv.vehicleId, startDate: mv.startDate, endDate: mv.endDate });
-      await onDone("Moved.");
-    } catch (err) { onError((err as ApiError).message); setBusy(false); }
-  }
-
-  return (
-    <div>
-      <div className="pl-pop-head"><b>{p.bar.label}</b><span className="pl-pop-range">{p.bar.start} → {p.bar.end} · {p.bar.status}{p.bar.source === "manual" ? " · manual" : ""}</span></div>
-      {p.bar.notes && <p className="pl-pop-note">{p.bar.notes}</p>}
-      {!showMove ? (
-        <div className="pl-pop-actions">
-          <button className="btn btn--quiet" onClick={() => setShowMove(true)}>Move…</button>
-          {p.bar.status === "pending" && <button className="btn" disabled={busy} onClick={confirm}>Confirm reservation</button>}
-          {(p.bar.status === "pending" || p.bar.status === "confirmed") && <button className="btn danger" disabled={busy} onClick={cancel}>Cancel rental</button>}
-          <button className="btn btn--quiet" onClick={onClose}>Close</button>
-        </div>
-      ) : (
-        <form className="pl-form" onSubmit={move}>
-          <label>Car<select value={mv.vehicleId} onChange={(e) => setMv({ ...mv, vehicleId: e.target.value })}>{vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate} — {v.name}</option>)}</select></label>
-          <label>Pick-up<input type="date" required value={mv.startDate} onChange={(e) => setMv({ ...mv, startDate: e.target.value })} /></label>
-          <label>Return<input type="date" required value={mv.endDate} onChange={(e) => setMv({ ...mv, endDate: e.target.value })} /></label>
-          <div className="pl-pop-actions">
-            <button className="btn" disabled={busy}>{busy ? "Saving…" : "Save move"}</button>
-            <button type="button" className="btn btn--quiet" onClick={() => setShowMove(false)}>Back</button>
-          </div>
-        </form>
-      )}
-    </div>
-  );
-}
-
-function BlockPanel({ p, onDone, onError }: {
+function BlockPanel({ p, confirm, onDone, onError }: {
   p: Extract<Popover, { kind: "block" }>;
+  confirm: ConfirmFn;
   onDone: (msg?: string) => Promise<void> | void;
   onError: (msg: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
   async function remove() {
-    if (busy) return; setBusy(true);
+    if (busy) return;
+    const ok = await confirm({
+      title: "Remove this block?",
+      message: `${niceType(p.block.type)} (${p.block.start} to ${p.block.end}) will be removed and the dates open back up for booking.`,
+      confirmLabel: "Remove block",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
     try { await apiDelete(`/api/admin/blocks/${p.block.id}`); await onDone("Block removed."); }
     catch (err) { onError((err as ApiError).message); setBusy(false); }
   }
@@ -511,9 +704,10 @@ function BlockPanel({ p, onDone, onError }: {
 }
 
 // Button-driven way to take a car off the road for a carwash, maintenance,
-// cleaning or out-of-service window — no calendar dragging required. Writes the
+// cleaning or out-of-service window, no calendar dragging required. Writes the
 // same availability block the drag flow does, so it shows on the board instantly.
-function ServiceModal({ vehicles, defaultDate, onClose, onDone, onError }: {
+function ServiceModal({ open, vehicles, defaultDate, onClose, onDone, onError }: {
+  open: boolean;
   vehicles: Vehicle[];
   defaultDate: string;
   onClose: () => void;
@@ -525,43 +719,59 @@ function ServiceModal({ vehicles, defaultDate, onClose, onDone, onError }: {
     vehicleId: vehicles[0]?.id ?? "",
     type: "maintenance",
     startDate: defaultDate,
+    startTime: "00:00",
     endDate: addDays(defaultDate, 1),
+    endTime: "00:00",
     reason: "",
   });
+
+  // Refresh the default vehicle once the fleet loads (the form mounts before the
+  // first vehicle list arrives). Keeps the same submit/validation behavior.
+  useEffect(() => {
+    if (open) setF((prev) => (prev.vehicleId ? prev : { ...prev, vehicleId: vehicles[0]?.id ?? "" }));
+  }, [open, vehicles]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!f.vehicleId) { onError("Add a vehicle first."); return; }
-    if (f.endDate <= f.startDate) { onError("The 'until' date must be after the start date."); return; }
+    const startAt = atAruba(f.startDate, f.startTime);
+    const endAt = atAruba(f.endDate, f.endTime);
+    if (parseTs(endAt) <= parseTs(startAt)) { onError("The end must be after the start."); return; }
     setBusy(true);
     try {
       await api(`/api/admin/vehicles/${f.vehicleId}/blocks`, {
-        startDate: f.startDate, endDate: f.endDate, type: f.type, reason: f.reason,
+        startAt, endAt, type: f.type, reason: f.reason,
       });
       await onDone("Service scheduled.");
     } catch (err) { onError((err as ApiError).message); setBusy(false); }
   }
 
   return (
-    <>
-      <div className="pl-backdrop" onClick={onClose} />
-      <div className="pl-modal" role="dialog">
-        <div className="pl-pop-head"><b>Schedule service</b><span className="pl-pop-range">Carwash, maintenance, cleaning or out of service</span></div>
-        <form className="pl-form" onSubmit={submit}>
-          <label>Car<select required value={f.vehicleId} onChange={(e) => setF({ ...f, vehicleId: e.target.value })}>
-            {vehicles.length === 0 && <option value="">No cars yet</option>}
-            {vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate} — {v.name}</option>)}
-          </select></label>
-          <label>Type<select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>{BLOCK_TYPES.map((t) => <option key={t} value={t}>{niceType(t)}</option>)}</select></label>
-          <label>From<input type="date" required value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></label>
-          <label>Until<input type="date" required value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} /></label>
-          <label>Note (optional)<input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="e.g. brake service at AutoFix" /></label>
-          <div className="pl-pop-actions">
-            <button className="btn" disabled={busy}>{busy ? "Saving…" : "Schedule"}</button>
-            <button type="button" className="btn btn--quiet" onClick={onClose}>Cancel</button>
-          </div>
-        </form>
-      </div>
-    </>
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Schedule service"
+      description="Carwash, maintenance, cleaning or out of service. This blocks the dates on the board."
+      size="md"
+      footer={
+        <>
+          <button type="button" className="btn btn--quiet" onClick={onClose}>Cancel</button>
+          <button type="submit" form="service-form" className="btn btn--accent" disabled={busy}>{busy ? "Saving…" : "Schedule"}</button>
+        </>
+      }
+    >
+      <form id="service-form" className="pl-form pl-service-form" onSubmit={submit}>
+        <label data-autofocus tabIndex={-1}>Car<Select required value={f.vehicleId} onChange={(v) => setF({ ...f, vehicleId: v })} placeholder="No cars yet" options={vehicles.map((v) => ({ value: v.id, label: `${v.plate} · ${v.name}` }))} /></label>
+        <label>Type<Select value={f.type} onChange={(v) => setF({ ...f, type: v })} options={BLOCK_TYPES.map((t) => ({ value: t, label: niceType(t) }))} /></label>
+        <div className="pl-service-dates">
+          <label>From<DatePicker required value={f.startDate} onChange={(iso) => setF({ ...f, startDate: iso })} /></label>
+          <label>Start time<TimeSelect value={f.startTime} onChange={(t) => setF({ ...f, startTime: t })} /></label>
+          <label>Until<DatePicker required value={f.endDate} onChange={(iso) => setF({ ...f, endDate: iso })} /></label>
+          <label>End time<TimeSelect value={f.endTime} onChange={(t) => setF({ ...f, endTime: t })} /></label>
+        </div>
+        <p className="pl-pop-times">Leave 00:00 for full days.</p>
+        <label>Note (optional)<input value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} placeholder="e.g. brake service at AutoFix" /></label>
+      </form>
+    </Modal>
   );
 }

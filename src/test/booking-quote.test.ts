@@ -1,13 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { rentalDays, bestVehicleCents, quote } from "@/lib/booking/quote";
+import { atAruba } from "@/lib/time/format";
 
 const rates = { priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000, depositCents: 25000 };
+const at = (d: string) => atAruba(d, "09:00");
 
 describe("rentalDays", () => {
   it("counts whole days with an exclusive end", () => {
-    expect(rentalDays("2026-07-01", "2026-07-08")).toBe(7);
-    expect(rentalDays("2026-07-01", "2026-07-02")).toBe(1);
-    expect(rentalDays("2026-07-01", "2026-08-01")).toBe(31);
+    expect(rentalDays(at("2026-07-01"), at("2026-07-08"))).toBe(7);
+    expect(rentalDays(at("2026-07-01"), at("2026-07-02"))).toBe(1);
+    expect(rentalDays(at("2026-07-01"), at("2026-08-01"))).toBe(31);
   });
 });
 
@@ -47,7 +49,7 @@ describe("quote", () => {
         { id: "a1", name: "Baby chair", priceCents: 500, pricing: "per_day", qty: 1 },
         { id: "a2", name: "Cooler", priceCents: 700, pricing: "per_rental", qty: 2 },
       ],
-      reservationFeeCents: 3000,
+      depositPercent: 25, depositMinCents: 3000,
       currency: "USD",
     });
     expect(b.vehicleCents).toBe(34800);          // weekly
@@ -57,14 +59,47 @@ describe("quote", () => {
     expect(b.addOnsCents).toBe(3500 + 1400);     // 4900
     expect(b.subtotalCents).toBe(34800 + 10500 + 4900); // 50200
     expect(b.depositCents).toBe(25000);
-    expect(b.reservationFeeCents).toBe(3000);
+    expect(b.depositPercent).toBe(25);
+    expect(b.depositMinCents).toBe(3000);
+    expect(b.youngDriverCents).toBe(0);
     expect(b.currency).toBe("USD");
   });
 
   it("handles no insurance and a null deposit", () => {
-    const b = quote({ days: 3, vehicle: { ...rates, depositCents: null }, addOns: [], reservationFeeCents: 3000, currency: "USD" });
+    const b = quote({ days: 3, vehicle: { ...rates, depositCents: null }, addOns: [], depositPercent: 25, depositMinCents: 3000, currency: "USD" });
     expect(b.insuranceCents).toBe(0);
     expect(b.depositCents).toBeNull();
     expect(b.subtotalCents).toBe(b.vehicleCents);
+  });
+});
+
+describe("quote young driver surcharge", () => {
+  it("adds feePerDay times days and folds it into the subtotal", () => {
+    const b = quote({
+      days: 7, vehicle: rates, addOns: [], depositPercent: 25, depositMinCents: 3000, currency: "USD",
+      youngDriver: true, youngDriverFeeCentsPerDay: 1000,
+    });
+    expect(b.youngDriver).toBe(true);
+    expect(b.youngDriverCents).toBe(7000);
+    expect(b.subtotalCents).toBe(b.vehicleCents + b.insuranceCents + b.addOnsCents + 7000);
+  });
+
+  it("charges nothing when the flag is off or omitted", () => {
+    const off = quote({
+      days: 7, vehicle: rates, addOns: [], depositPercent: 25, depositMinCents: 3000, currency: "USD",
+      youngDriver: false, youngDriverFeeCentsPerDay: 1000,
+    });
+    expect(off.youngDriver).toBe(false);
+    expect(off.youngDriverCents).toBe(0);
+    const omitted = quote({ days: 7, vehicle: rates, addOns: [], depositPercent: 25, depositMinCents: 3000, currency: "USD" });
+    expect(omitted.youngDriver).toBe(false);
+    expect(omitted.youngDriverCents).toBe(0);
+    expect(omitted.subtotalCents).toBe(omitted.vehicleCents + omitted.insuranceCents + omitted.addOnsCents);
+  });
+
+  it("keeps the flag true with a zero fee (surcharge disabled) without charging", () => {
+    const b = quote({ days: 3, vehicle: rates, addOns: [], depositPercent: 25, depositMinCents: 3000, currency: "USD", youngDriver: true });
+    expect(b.youngDriver).toBe(true);
+    expect(b.youngDriverCents).toBe(0);
   });
 });

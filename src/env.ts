@@ -174,10 +174,23 @@ const EnvSchema = z
     // and logged; bookings and boot are never blocked by missing email config.
     RESEND_API_KEY: z
       .string()
-      .refine((v) => v === "" || /^re_[A-Za-z0-9]+$/.test(v), { message: "RESEND_API_KEY must be a re_ key or empty" })
+      // Real Resend keys contain an underscore after the prefix (re_xxxx_yyyy);
+      // a stricter alnum-only regex rejected a genuine key at go-live and
+      // crash-looped the container at boot.
+      .refine((v) => v === "" || /^re_[A-Za-z0-9_]+$/.test(v), { message: "RESEND_API_KEY must be a re_ key or empty" })
       .optional()
       .default(""),
     EMAIL_FROM: z.string().optional().default("Tex Cars <bookings@tex-cars.com>"),
+
+    // Local-dev ONLY: return the passwordless login OTP in the /api/auth/request
+    // response so local testing works without an email provider. Default false
+    // (fail-closed). The route ALSO requires non-production, so this can never
+    // leak the OTP from a production deploy even if mis-set. NEVER set true
+    // outside local development.
+    AUTH_DEV_RETURN_CODE: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((v) => v === "true"),
 
     // Upstash Redis (rate-limit store) — OPTIONAL. When both are set, the rate
     // limiter coordinates across all serverless instances (spec §11). Falls back
@@ -209,6 +222,16 @@ const EnvSchema = z
     // Owner Telegram alerts. Dormant until BOTH are set (same contract as WhatsApp).
     TELEGRAM_BOT_TOKEN: z.string().optional().default(""),
     TELEGRAM_CHAT_ID: z.string().optional().default(""),
+
+    // Object storage for inspection photos, licence copies, signatures, and
+    // contract PDFs. 'local' writes under LOCAL_STORAGE_DIR (dev/test);
+    // 'supabase' uses a PRIVATE Supabase Storage bucket via the service-role
+    // key (prod). Media is always PRIVATE; the app streams it to admins only.
+    STORAGE_DRIVER: z.enum(["supabase", "local"]).default("local"),
+    SUPABASE_URL: z.string().url().optional().or(z.literal("")).default(""),
+    SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(""),
+    STORAGE_BUCKET: z.string().optional().default("fleet-docs"),
+    LOCAL_STORAGE_DIR: z.string().optional().default(".dev-storage"),
   })
   .superRefine((data, ctx) => {
     // Stripe keys are only REQUIRED (beyond format-validity, already checked
@@ -244,6 +267,17 @@ const EnvSchema = z
           "NEXT_PUBLIC_PAYMENT_MODE must equal PAYMENT_MODE (they must match: both control the same payment mode, one server-side and one baked into the client bundle)",
       });
     }
+
+    // STORAGE_DRIVER=supabase requires real Supabase credentials; local (the
+    // dev/test default) needs none. Fail closed rather than boot into a
+    // driver that will 500 on first upload.
+    if (data.STORAGE_DRIVER === "supabase" && (!data.SUPABASE_URL || !data.SUPABASE_SERVICE_ROLE_KEY)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["STORAGE_DRIVER"],
+        message: "STORAGE_DRIVER=supabase requires SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY",
+      });
+    }
   });
 
 export type Env = z.infer<typeof EnvSchema>;
@@ -265,3 +299,19 @@ function loadEnv(): Env {
 export const env: Readonly<Env> = Object.freeze(loadEnv());
 
 export const isProd = env.NODE_ENV === "production";
+
+// Boot warning: in production without a trusted IP source (TRUST_PROXY) AND
+// without a shared Redis store, the rate limiter falls back to a best-effort
+// request fingerprint a client can rotate (User-Agent etc.) to evade the per-IP
+// tiers. Per-account lockout and per-scope caps (e.g. per-email) still hold, but
+// the global IP-based DoS protection is weak. Fix: TRUST_PROXY=true behind a
+// trusted edge and/or configure UPSTASH_*.
+if (isProd && !env.TRUST_PROXY && !(env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN)) {
+  // eslint-disable-next-line no-console -- boot-time operational warning.
+  console.warn(
+    "[tex-cars] WARNING: rate limiter is keyed on a spoofable request fingerprint " +
+      "(TRUST_PROXY=false and no Upstash Redis in production). Per-IP limits can be " +
+      "evaded by rotating the User-Agent. Set TRUST_PROXY=true behind a trusted edge " +
+      "and/or configure UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN.",
+  );
+}

@@ -1,4 +1,4 @@
-import { pgTable, pgEnum, text, integer, boolean, timestamp, date, uuid, jsonb, check } from "drizzle-orm/pg-core";
+import { pgTable, pgEnum, text, integer, boolean, timestamp, date, uuid, jsonb, check, smallint } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const vehicleStatus = pgEnum("vehicle_status", ["active", "maintenance", "retired"]);
@@ -11,6 +11,10 @@ export const vehicles = pgTable("vehicles", {
   plate: text("plate").notNull().unique(), // registration; the row ID on the ops board
   class: text("class").notNull(),
   name: text("name").notNull(),
+  make: text("make"),
+  model: text("model"),
+  year: integer("year"),
+  color: text("color"),
   seats: integer("seats").notNull(),
   transmission: text("transmission").notNull(),
   ac: boolean("ac").notNull().default(true),
@@ -21,17 +25,24 @@ export const vehicles = pgTable("vehicles", {
   priceMonthCents: integer("price_month_cents").notNull(),
   depositCents: integer("deposit_cents"), // null until owner confirms per class (spec §16)
   status: vehicleStatus("status").notNull().default("active"),
+  // Compliance (wave 03): document expiry dates + alert-stage dedup markers.
+  // Stage: 0=none fired, 1=first warning fired (settings.complianceAlertDays out),
+  // 2=one-week warning fired, 3=overdue fired. Editing a date resets its stage.
+  insuranceExpiresOn: date("insurance_expires_on"),
+  inspectionDueOn: date("inspection_due_on"),
+  insuranceAlertStage: smallint("insurance_alert_stage").notNull().default(0),
+  inspectionAlertStage: smallint("inspection_alert_stage").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Admin-placed out-of-service windows (cleaning, repairs). End date exclusive, [) like bookings. */
+/** Admin-placed out-of-service windows (cleaning, repairs). End exclusive, [) like bookings. */
 export const availabilityBlocks = pgTable("availability_blocks", {
   id: uuid("id").defaultRandom().primaryKey(),
   vehicleId: uuid("vehicle_id").notNull().references(() => vehicles.id, { onDelete: "cascade" }),
-  startDate: date("start_date").notNull(),
-  endDate: date("end_date").notNull(),
+  startAt: timestamp("start_at", { withTimezone: true, mode: "string" }).notNull(),
+  endAt: timestamp("end_at", { withTimezone: true, mode: "string" }).notNull(),
   type: blockType("type").notNull().default("other"),
   reason: text("reason").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [check("availability_blocks_dates", sql`${t.endDate} > ${t.startDate}`)]);
+}, (t) => [check("availability_blocks_dates", sql`${t.endAt} > ${t.startAt}`)]);

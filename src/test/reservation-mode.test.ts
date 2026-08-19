@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vite
 import { runMigrations } from "@/lib/db/migrate";
 import { getDb } from "@/lib/db/client";
 import { vehicles, customers, bookings } from "@/lib/db/schema";
+import { atAruba } from "@/lib/time/format";
 import { eq } from "drizzle-orm";
 
 /**
@@ -115,11 +116,28 @@ describe("reserve-mode guards", () => {
     }
   });
 
+  it("createExtensionCheckout throws conflict in reserve mode", async () => {
+    process.env.PAYMENT_MODE = "reserve";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
+    const { createExtensionCheckout } = await import("@/lib/payments/checkout");
+    try {
+      // The guard fires before the booking argument, the DB, or Stripe is
+      // touched, so a minimal stub row suffices (same spirit as the
+      // nonexistent UUID the sibling test hands createBookingCheckout).
+      await createExtensionCheckout({ id: "00000000-0000-0000-0000-000000000000" } as never, 5800);
+      throw new Error("expected createExtensionCheckout to throw");
+    } catch (e) {
+      const err = e as { code?: string; message?: string };
+      expect(err.code).toBe("conflict");
+      expect(err.message).toMatch(/disabled/i);
+    }
+  });
+
   it("expireStaleHolds returns 0 and cancels nothing in reserve mode", async () => {
     const old = new Date(Date.now() - 60 * 60_000); // 60 min ago, well past any TTL
     const [b] = await db.insert(bookings).values({
-      vehicleId, customerId, startDate: "2029-01-01", endDate: "2029-01-05", bufferEndDate: "2029-01-06",
-      status: "pending", priceBreakdown: { subtotalCents: 1 }, paymentOption: "reservation_fee",
+      vehicleId, customerId, startAt: atAruba("2029-01-01", "09:00"), endAt: atAruba("2029-01-05", "09:00"), bufferEndAt: atAruba("2029-01-06", "09:00"),
+      status: "pending", priceBreakdown: { subtotalCents: 1 }, paymentOption: "deposit",
       acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: "rm-stale-hold", createdAt: old,
     }).returning();
 
@@ -131,5 +149,49 @@ describe("reserve-mode guards", () => {
 
     const [after] = await db.select().from(bookings).where(eq(bookings.id, b!.id));
     expect(after!.status).toBe("pending"); // untouched — reserve mode never auto-cancels
+  });
+
+  it("completePickup's desk-override message respects reserve mode (never says 'paid')", async () => {
+    // A pending reserve-mode booking was never going to be "paid" online in
+    // the first place (the owner confirms it by hand); the desk-override
+    // gate must say "not confirmed", not "not paid", or staff get a false
+    // signal about why the wizard is refusing to proceed.
+    //
+    // completePickup needs a real DB read to reach that guard, and DATABASE_URL
+    // is pglite://memory (src/test/setup.ts) -- vi.resetModules() gives
+    // @/lib/db/client a BRAND NEW, empty singleton, distinct from the outer
+    // `db` this file's beforeAll seeded. So this test builds its own tiny
+    // fixture through the freshly-reset module graph instead of reusing the
+    // outer vehicleId/customerId/db (matching every other test file's own
+    // beforeAll pattern, just inlined here since only this one case needs it).
+    process.env.PAYMENT_MODE = "reserve";
+    process.env.NEXT_PUBLIC_PAYMENT_MODE = "reserve";
+    const { getDb: freshGetDb } = await import("@/lib/db/client");
+    const { runMigrations: freshRunMigrations } = await import("@/lib/db/migrate");
+    const { vehicles: freshVehicles, customers: freshCustomers, bookings: freshBookings } = await import("@/lib/db/schema");
+    const { completePickup } = await import("@/lib/admin/inspections");
+
+    const freshDb = await freshGetDb();
+    await freshRunMigrations();
+    const [v] = await freshDb.insert(freshVehicles).values({
+      slug: "rm-pickup-car", plate: "PL-rm-pickup", class: "SUV", name: "Reserve Pickup Car", seats: 5,
+      transmission: "Automatic", doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000, depositCents: 25000,
+    }).returning();
+    const [c] = await freshDb.insert(freshCustomers).values({ email: "rm-pickup@test.com" }).returning();
+    const [b] = await freshDb.insert(freshBookings).values({
+      vehicleId: v!.id, customerId: c!.id,
+      startAt: atAruba("2029-02-01", "09:00"), endAt: atAruba("2029-02-05", "09:00"), bufferEndAt: atAruba("2029-02-06", "09:00"),
+      status: "pending", priceBreakdown: { subtotalCents: 20000 }, paymentOption: "deposit",
+      acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: "rm-pickup-override",
+    }).returning();
+
+    try {
+      await completePickup(b!.id, { actorId: "00000000-0000-0000-0000-000000000000" });
+      throw new Error("expected completePickup to throw");
+    } catch (e) {
+      const err = e as { message?: string };
+      expect(err.message).toMatch(/not been confirmed yet/i);
+      expect(err.message).not.toMatch(/not paid yet/i);
+    }
   });
 });

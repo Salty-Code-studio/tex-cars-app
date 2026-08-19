@@ -20,7 +20,10 @@ const BodySchema = z.object({ email: z.string().trim().toLowerCase().email().max
 export const POST = withRoute(async (req) => {
   await enforceRateLimit(req, "auth", "login-request");
   const { email } = await parseJsonBody(req, BodySchema);
-  await enforceRateLimit(req, "auth", `login-request:${email}`);
+  // Per-email cap keyed on the email ALONE (perScope), so it cannot be reset by
+  // rotating the client fingerprint. This bounds login-email bombing of a single
+  // victim regardless of the attacker's IP/User-Agent.
+  await enforceRateLimit(req, "auth", `login-request:${email}`, { perScope: true });
 
   const { code } = await issueLoginToken(email);
   // Code travels in the URL FRAGMENT (#), which browsers never send to the
@@ -28,9 +31,12 @@ export const POST = withRoute(async (req) => {
   const link = `${env.APP_ORIGIN}/account/verify#email=${encodeURIComponent(email)}&code=${code}`;
   await sendAndLog({ to: email, type: "login_code", ...loginCodeEmail({ code, link }) });
 
-  // Dev/preview affordance ONLY: with no email provider configured and not in
-  // production, return the code so local testing works without Resend. This is
-  // doubly gated and never fires in production or once a Resend key is set.
-  const devCode = !isProd && !env.RESEND_API_KEY ? code : undefined;
+  // Local-dev ONLY affordance, OFF by default (fail-closed). The OTP is returned
+  // in the response body ONLY when explicitly opted in via AUTH_DEV_RETURN_CODE
+  // AND not in production. Otherwise the code travels solely by email + the magic
+  // link, never in the API response. Returning it by default (the old behaviour)
+  // was a critical account-takeover hole: anyone could request a code for any
+  // email, read it from the response, and log in as that customer.
+  const devCode = !isProd && env.AUTH_DEV_RETURN_CODE ? code : undefined;
   return json({ ok: true, ...(devCode ? { devCode } : {}) }, req);
 });

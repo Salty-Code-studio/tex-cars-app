@@ -1,0 +1,31 @@
+/* Staff logins page (workstream 8). Scoped by .staff-* prefixes; base panel,
+   grid, field, and button styles come from admin.css. */
+.staff-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 1.1rem; }
+.staff-head .sub { color: var(--ink-soft); font-size: .92rem; margin: .25rem 0 0; }
+.staff-stack { display: grid; gap: 1.1rem; }
+/* min-width: 0 keeps wide panel content (the logins table) from inflating
+   the grid track past the viewport on phones; the table scrolls instead. */
+.staff-stack > * { min-width: 0; }
+.staff-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .9rem; }
+.staff-panel-head h2 { font-size: 1.02rem; margin: 0; }
+.staff-create { display: flex; gap: .8rem; align-items: flex-end; max-width: 480px; }
+.staff-create .field { flex: 1; margin-bottom: 0; }
+.staff-create .btn { width: auto; padding: .65rem 1.1rem; white-space: nowrap; }
+.staff-actions { display: flex; gap: .4rem; justify-content: flex-end; }
+.staff-actions .btn { width: auto; }
+.staff-code {
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 600;
+  letter-spacing: .35em;
+  text-align: center;
+  margin: .4rem 0 .8rem;
+  padding-left: .35em; /* optically recenters the letter-spaced digits */
+}
+
+@media (max-width: 640px) {
+  .staff-head { flex-wrap: wrap; gap: .6rem; }
+  .staff-create { flex-wrap: wrap; }
+  .staff-create .field { flex: 1 1 100%; }
+  .staff-create .btn { flex: 1 1 100%; }
+}

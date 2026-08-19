@@ -5,9 +5,9 @@ export function getCsrfToken(): string {
   return m?.[1] ?? "";
 }
 
-export interface ApiError { status: number; message: string; retryAfter?: string | null }
+export interface ApiError { status: number; message: string; code?: string; retryAfter?: string | null }
 
-type Method = "GET" | "POST" | "PATCH" | "DELETE";
+type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
@@ -21,10 +21,15 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
     body: method === "GET" ? undefined : JSON.stringify(body ?? {}),
   });
   if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
+    const data = (await res.json().catch(() => null)) as
+      | { error?: { message?: string; details?: { code?: string } } }
+      | null;
     throw {
       status: res.status,
       message: data?.error?.message ?? "Something went wrong. Please try again.",
+      // Advisory block/blackout conflicts carry a details.code the UI checks
+      // to offer an override retry, distinct from a real double-booking 409.
+      code: data?.error?.details?.code,
       retryAfter: res.headers.get("Retry-After"),
     } satisfies ApiError;
   }
@@ -35,4 +40,5 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
 export const apiGet = <T>(path: string) => request<T>("GET", path);
 export const api = <T>(path: string, body?: unknown) => request<T>("POST", path, body);
 export const apiPatch = <T>(path: string, body?: unknown) => request<T>("PATCH", path, body);
+export const apiPut = <T>(path: string, body?: unknown) => request<T>("PUT", path, body);
 export const apiDelete = <T>(path: string) => request<T>("DELETE", path);

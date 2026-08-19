@@ -12,6 +12,7 @@ import { getDb, closeDb } from "../src/lib/db/client";
 import { vehicles, customers, bookings } from "../src/lib/db/schema";
 import { getSettings } from "../src/lib/admin/settings";
 import { quote } from "../src/lib/booking/quote";
+import { atAruba, addHoursIso } from "../src/lib/time/format";
 import { ne, like, eq, and } from "drizzle-orm";
 
 // Anchor to "today" so the rentals sit in the board's opening window.
@@ -33,18 +34,22 @@ const DEMO_CUSTOMERS = [
 ];
 
 // (vehicleIndex, startOffset, endOffset, status, source, paymentOption, customerIndex)
-type Row = [number, number, number, "confirmed" | "pending" | "completed", "online" | "manual", "reservation_fee" | "full_deposit" | "cash_deposit", number];
+// Old three-way paymentOption enum (reservation_fee/full_deposit/cash_deposit)
+// retired by wave 02's money model; online rows map to "deposit" (matches the
+// migration's own historical backfill), the manual walk-in row maps to "full"
+// (matches manual-booking.ts's go-forward choice: desk bookings settle in full).
+type Row = [number, number, number, "confirmed" | "pending" | "completed", "online" | "manual", "deposit" | "full", number];
 const PLAN: Row[] = [
-  [0, -4, -1, "completed", "online", "reservation_fee", 0], // just finished (green)
-  [1, -2, 3, "confirmed", "online", "reservation_fee", 1], // ongoing (blue)
-  [2, 0, 5, "confirmed", "online", "full_deposit", 2],
-  [3, 1, 4, "pending", "online", "reservation_fee", 3], // awaiting payment (amber)
-  [4, 2, 9, "confirmed", "online", "reservation_fee", 4],
-  [5, -1, 2, "confirmed", "manual", "cash_deposit", 5], // walk-in desk rental
-  [6, 5, 12, "pending", "online", "reservation_fee", 0],
-  [7, 3, 7, "confirmed", "online", "full_deposit", 1],
-  [8, -6, -3, "completed", "online", "reservation_fee", 2], // last week (green)
-  [9, 8, 15, "confirmed", "online", "reservation_fee", 3],
+  [0, -4, -1, "completed", "online", "deposit", 0], // just finished (green)
+  [1, -2, 3, "confirmed", "online", "deposit", 1], // ongoing (blue)
+  [2, 0, 5, "confirmed", "online", "deposit", 2],
+  [3, 1, 4, "pending", "online", "deposit", 3], // awaiting payment (amber)
+  [4, 2, 9, "confirmed", "online", "deposit", 4],
+  [5, -1, 2, "confirmed", "manual", "full", 5], // walk-in desk rental
+  [6, 5, 12, "pending", "online", "deposit", 0],
+  [7, 3, 7, "confirmed", "online", "deposit", 1],
+  [8, -6, -3, "completed", "online", "deposit", 2], // last week (green)
+  [9, 8, 15, "confirmed", "online", "deposit", 3],
 ];
 
 async function main() {
@@ -76,21 +81,24 @@ async function main() {
     const startDate = iso(so);
     const endDate = iso(eo);
     const days = Math.round((Date.parse(endDate) - Date.parse(startDate)) / 86_400_000);
-    const bufferEndDate = iso(eo + settings.turnaroundBufferDays);
+    const startAt = atAruba(startDate, "09:00");
+    const endAt = atAruba(endDate, "09:00");
+    const bufferEndAt = addHoursIso(endAt, settings.turnaroundBufferHours);
     const breakdown = quote({
       days,
       vehicle: { priceDayCents: v.priceDayCents, priceWeekCents: v.priceWeekCents, priceMonthCents: v.priceMonthCents, depositCents: v.depositCents },
       insurance: null,
       addOns: [],
-      reservationFeeCents: settings.reservationFeeCents,
+      depositPercent: settings.depositPercent,
+      depositMinCents: settings.depositMinCents,
       currency: settings.currency,
     });
     await db.insert(bookings).values({
       vehicleId: v.id,
       customerId: custIds[ci]!,
-      startDate,
-      endDate,
-      bufferEndDate,
+      startAt,
+      endAt,
+      bufferEndAt,
       status,
       source,
       notes: source === "manual" ? "Walk-in rental (demo)" : null,

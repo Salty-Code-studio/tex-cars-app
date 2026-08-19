@@ -19,14 +19,16 @@ import { isUniqueViolation, translateDbError } from "@/lib/db/errors";
 import { getSettings } from "@/lib/admin/settings";
 import { getLatestPolicy } from "@/lib/admin/policies";
 import { rentalDays, quote, type QuoteBreakdown } from "@/lib/booking/quote";
+import { paymentAmounts } from "@/lib/payments/charge";
 import { validateDates, checkAvailability } from "@/lib/booking/availability";
-import { LicenseSchema, validateLicense, encryptLicense } from "@/lib/booking/license";
-import { isoDate } from "@/lib/validation/iso-date";
+import { LicenseSchema, validateLicense, encryptLicense, driverAgeBand } from "@/lib/booking/license";
+import { addHoursIso, arubaDateOf, parseTs } from "@/lib/time/format";
+import { isoDateTime } from "@/lib/validation/iso-date";
 
 export const BookingCreateSchema = z.object({
   vehicleSlug: z.string().trim().min(1).max(80),
-  startDate: isoDate,
-  endDate: isoDate,
+  startAt: isoDateTime,
+  endAt: isoDateTime,
   customer: z.object({
     email: z.string().trim().toLowerCase().email().max(254),
     name: z.string().trim().min(1).max(120),
@@ -36,7 +38,10 @@ export const BookingCreateSchema = z.object({
   addOns: z.array(z.object({ addOnId: z.string().uuid(), qty: z.number().int().min(1).max(10) })).max(20).default([]),
   license: LicenseSchema,
   acceptTerms: z.literal(true, { errorMap: () => ({ message: "You must accept the rental terms" }) }),
-  paymentOption: z.enum(["reservation_fee", "full_deposit", "cash_deposit"]),
+  paymentOption: z.enum(["deposit", "full"]),
+  // Claimed age band from the wizard selector. A hint only: the licence DOB is
+  // the truth and createBooking reprices on mismatch (priceAdjusted).
+  youngDriver: z.boolean().optional().default(false),
   idempotencyKey: z.string().trim().min(8).max(200),
 }).strict();
 
@@ -47,15 +52,24 @@ export interface BookingResult {
   booking: Booking;
   breakdown: QuoteBreakdown;
   replayed: boolean;
+  /** True when the claimed age band did not match the licence DOB and the
+   *  snapshot was corrected (up or down) before payment. */
+  priceAdjusted: boolean;
 }
 
-export async function createBooking(input: BookingCreateInput, today: string): Promise<BookingResult> {
+export async function createBooking(input: BookingCreateInput, nowIso: string): Promise<BookingResult> {
   const db = await getDb();
 
   // Idempotent replay: same key returns the same booking, never a second one.
   const [existing] = await db.select().from(bookings).where(eq(bookings.idempotencyKey, input.idempotencyKey));
   if (existing) {
-    return { booking: existing, breakdown: existing.priceBreakdown as QuoteBreakdown, replayed: true };
+    const prior = existing.priceBreakdown as QuoteBreakdown;
+    return {
+      booking: existing,
+      breakdown: prior,
+      replayed: true,
+      priceAdjusted: (prior.youngDriver ?? false) !== input.youngDriver,
+    };
   }
 
   const settings = await getSettings();
@@ -63,25 +77,18 @@ export async function createBooking(input: BookingCreateInput, today: string): P
   if (!vehicle || vehicle.status !== "active") throw Errors.notFound("Vehicle not available");
 
   // Guardrails (throw 4xx on violation).
-  validateDates(input.startDate, input.endDate, settings, today);
-  validateLicense(input.license, { minDriverAge: settings.minDriverAge, rentalStart: input.startDate, rentalEnd: input.endDate });
+  validateDates(input.startAt, input.endAt, settings, nowIso);
+  const pickupDateStr = arubaDateOf(input.startAt);
+  validateLicense(input.license, { minDriverAge: settings.minDriverAge, rentalStart: pickupDateStr, rentalEnd: arubaDateOf(input.endAt) });
 
-  const availability = await checkAvailability(vehicle.id, input.startDate, input.endDate, settings);
+  // Young-driver truth check (workstream 5): the licence DOB decides the
+  // surcharge, never the claimed band. under_min never reaches here.
+  const band = driverAgeBand(input.license.dob, pickupDateStr, settings);
+  const youngDriver = band === "young";
+  const priceAdjusted = youngDriver !== input.youngDriver;
+
+  const availability = await checkAvailability(vehicle.id, input.startAt, input.endAt, settings);
   if (!availability.available) throw Errors.conflict(availability.reason ?? "Those dates are not available");
-
-  if (input.paymentOption === "full_deposit" && vehicle.depositCents === null) {
-    throw Errors.badRequest("Paying the full deposit online is not available for this car yet");
-  }
-  // A reservation_fee / cash_deposit booking is locked by charging the online
-  // reservation fee. If the owner set that fee to 0 the booking would be created
-  // but never chargeable (chargeForBooking throws), so reject it up front rather
-  // than leave an unpayable hold tying up the car until it expires.
-  if (
-    (input.paymentOption === "reservation_fee" || input.paymentOption === "cash_deposit") &&
-    settings.reservationFeeCents <= 0
-  ) {
-    throw Errors.badRequest("Online reservation is unavailable right now; please contact us to book");
-  }
 
   // Resolve insurance tier (must be active) and add-ons (must be active).
   let insurance: { id: string; name: string; dailyPriceCents: number } | null = null;
@@ -110,7 +117,7 @@ export async function createBooking(input: BookingCreateInput, today: string): P
     if (req.qty > 10) throw Errors.badRequest(`At most 10 of "${a.name}" per booking`);
   }
 
-  const days = rentalDays(input.startDate, input.endDate);
+  const days = rentalDays(input.startAt, input.endAt);
   const breakdown = quote({
     days,
     vehicle: {
@@ -124,16 +131,28 @@ export async function createBooking(input: BookingCreateInput, today: string): P
       const a = addOnById.get(req.addOnId)!;
       return { id: a.id, name: a.name, priceCents: a.priceCents, pricing: a.pricing, qty: req.qty };
     }),
-    reservationFeeCents: settings.reservationFeeCents,
+    depositPercent: settings.depositPercent,
+    depositMinCents: settings.depositMinCents,
     currency: settings.currency,
+    youngDriver,
+    youngDriverFeeCentsPerDay: settings.youngDriverFeeCentsPerDay,
   });
 
+  // If the owner zeroed both deposit knobs the booking could never be charged
+  // (chargeForBooking throws), so reject up front instead of stranding a hold.
+  const amounts = paymentAmounts(breakdown, input.paymentOption, {
+    depositPercent: settings.depositPercent,
+    depositMinCents: settings.depositMinCents,
+  });
+  if (amounts.payNowCents <= 0) {
+    throw Errors.badRequest("Online reservation is unavailable right now; please contact us to book");
+  }
+
   const termsVersion = (await getLatestPolicy("rental_terms"))?.version ?? 0;
-  const retainUntil = new Date(Date.parse(`${input.endDate}T00:00:00Z`) + settings.licenseRetentionDays * 86_400_000);
+  const retainUntil = new Date(parseTs(input.endAt) + settings.licenseRetentionDays * 86_400_000);
   // The DB exclusion constraint runs over [start, bufferEnd) so the cleaning gap
   // is physically enforced (not just pre-checked).
-  const bufferEndDate = new Date(Date.parse(`${input.endDate}T00:00:00Z`) + settings.turnaroundBufferDays * 86_400_000)
-    .toISOString().slice(0, 10);
+  const bufferEndAt = addHoursIso(input.endAt, settings.turnaroundBufferHours);
   const now = new Date();
 
   try {
@@ -152,9 +171,9 @@ export async function createBooking(input: BookingCreateInput, today: string): P
           .innerJoin(bookings, eq(bookingAddOns.bookingId, bookings.id))
           .where(and(
             eq(bookingAddOns.addOnId, a.id),
-            inArray(bookings.status, ["pending", "confirmed"]),
-            lt(bookings.startDate, input.endDate),
-            gt(bookings.endDate, input.startDate),
+            inArray(bookings.status, ["pending", "confirmed", "picked_up"]),
+            lt(bookings.startAt, input.endAt),
+            gt(bookings.endAt, input.startAt),
           ));
         const headroom = a.stock - Number(usedRow?.used ?? 0);
         if (req.qty > headroom) throw Errors.conflict(`Only ${Math.max(0, headroom)} of "${a.name}" left for those dates`);
@@ -171,9 +190,9 @@ export async function createBooking(input: BookingCreateInput, today: string): P
       const [booking] = await tx.insert(bookings).values({
         vehicleId: vehicle.id,
         customerId: customer!.id,
-        startDate: input.startDate,
-        endDate: input.endDate,
-        bufferEndDate,
+        startAt: input.startAt,
+        endAt: input.endAt,
+        bufferEndAt,
         status: "pending",
         priceBreakdown: breakdown,
         insuranceTierId: insurance?.id ?? null,
@@ -195,13 +214,21 @@ export async function createBooking(input: BookingCreateInput, today: string): P
       const enc = encryptLicense(booking!.id, input.license);
       await tx.insert(driverLicenses).values({ bookingId: booking!.id, ...enc, retainUntil });
 
-      return { booking: booking!, breakdown, replayed: false };
+      return { booking: booking!, breakdown, replayed: false, priceAdjusted };
     });
   } catch (e) {
     // A same-key race: the other request won — return its booking.
     if (isUniqueViolation(e)) {
       const [winner] = await db.select().from(bookings).where(eq(bookings.idempotencyKey, input.idempotencyKey));
-      if (winner) return { booking: winner, breakdown: winner.priceBreakdown as QuoteBreakdown, replayed: true };
+      if (winner) {
+        const prior = winner.priceBreakdown as QuoteBreakdown;
+        return {
+          booking: winner,
+          breakdown: prior,
+          replayed: true,
+          priceAdjusted: (prior.youngDriver ?? false) !== input.youngDriver,
+        };
+      }
     }
     const translated = translateDbError(e);
     if (translated) throw translated; // 23P01 overlap → 409, etc.

@@ -5,7 +5,9 @@ import { vehicles, customers, bookings } from "@/lib/db/schema";
 import { Errors } from "@/lib/http/errors";
 import { translateDbError } from "@/lib/db/errors";
 import { getSettings } from "@/lib/admin/settings";
-import { isoDate } from "@/lib/validation/iso-date";
+import { checkAvailability } from "@/lib/booking/availability";
+import { addHoursIso, parseTs } from "@/lib/time/format";
+import { isoDateTime } from "@/lib/validation/iso-date";
 
 /**
  * Walk-in / phone bookings made at the desk. These skip the public booking
@@ -17,14 +19,18 @@ import { isoDate } from "@/lib/validation/iso-date";
  */
 export const ManualBookingSchema = z.object({
   vehicleId: z.string().uuid(),
-  startDate: isoDate,
-  endDate: isoDate,
+  startAt: isoDateTime,
+  endAt: isoDateTime,
   customerName: z.string().trim().min(1).max(120),
   customerPhone: z.string().trim().max(40).default(""),
   customerEmail: z.string().trim().toLowerCase().email().max(254).optional(),
   priceCents: z.number().int().min(0).max(100_000_00).optional(),
   notes: z.string().trim().max(500).optional(),
-}).strict().refine((v) => v.endDate > v.startDate, { message: "endDate must be after startDate", path: ["endDate"] });
+  /** Desk staff can explicitly book over an advisory block/blackout after
+   *  confirming in the UI; the physical exclusion constraint (real booking
+   *  clashes) can never be overridden. */
+  override: z.boolean().default(false),
+}).strict().refine((v) => parseTs(v.endAt) > parseTs(v.startAt), { message: "endAt must be after startAt", path: ["endAt"] });
 
 export type ManualBookingInput = z.input<typeof ManualBookingSchema>;
 
@@ -46,24 +52,32 @@ export async function createManualBooking(raw: ManualBookingInput) {
   const [vehicle] = await db.select().from(vehicles).where(eq(vehicles.id, input.vehicleId));
   if (!vehicle || vehicle.status === "retired") throw Errors.notFound("Vehicle not available");
 
+  if (!input.override) {
+    const availability = await checkAvailability(vehicle.id, input.startAt, input.endAt, settings);
+    // A booking clash is already surfaced by the DB constraint on insert; the
+    // advisory value here is blocks and blackouts, which the constraint can't see.
+    if (!availability.available) {
+      throw Errors.conflict(`${availability.reason ?? "That range is unavailable"}. Confirm to book anyway.`, { code: "advisory_conflict" });
+    }
+  }
+
   const email = input.customerEmail ?? syntheticEmail(input.customerPhone, input.customerName);
   await db.insert(customers)
     .values({ email, name: input.customerName, phone: input.customerPhone })
     .onConflictDoNothing({ target: customers.email });
   const [customer] = await db.select().from(customers).where(eq(customers.email, email));
 
-  const bufferEndDate = new Date(Date.parse(`${input.endDate}T00:00:00Z`) + settings.turnaroundBufferDays * 86_400_000)
-    .toISOString().slice(0, 10);
+  const bufferEndAt = addHoursIso(input.endAt, settings.turnaroundBufferHours);
   const breakdown = { manual: true, subtotalCents: input.priceCents ?? 0, currency: settings.currency };
 
   try {
     const [booking] = await db.insert(bookings).values({
       vehicleId: vehicle.id, customerId: customer!.id,
-      startDate: input.startDate, endDate: input.endDate, bufferEndDate,
+      startAt: input.startAt, endAt: input.endAt, bufferEndAt,
       status: "confirmed", source: "manual", notes: input.notes ?? null,
-      priceBreakdown: breakdown, paymentOption: "cash_deposit",
+      priceBreakdown: breakdown, paymentOption: "full",
       acceptedPolicyVersion: 0, acceptedAt: new Date(),
-      idempotencyKey: `manual-${customer!.id}-${input.startDate}-${input.endDate}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      idempotencyKey: `manual-${customer!.id}-${input.startAt}-${input.endAt}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     }).returning();
     return booking!;
   } catch (e) {

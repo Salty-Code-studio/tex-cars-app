@@ -7,6 +7,7 @@
  * short rental is never charged more than the next tier up. We compute the exact
  * optimum with a tiny DP over the day count.
  */
+import { parseTs } from "@/lib/time/format";
 
 export interface VehicleRates {
   priceDayCents: number;
@@ -28,8 +29,13 @@ export interface QuoteInput {
   vehicle: VehicleRates;
   insurance?: { id: string; name: string; dailyPriceCents: number } | null;
   addOns: QuoteAddOnInput[];
-  reservationFeeCents: number;
+  depositPercent: number;
+  depositMinCents: number;
   currency: string;
+  /** Young-driver surcharge (workstream 5). Flag decided server-side from the
+   *  licence DOB at booking time; the wizard's claim only drives live quotes. */
+  youngDriver?: boolean;
+  youngDriverFeeCentsPerDay?: number;
 }
 
 export interface QuoteAddOnLine {
@@ -49,16 +55,21 @@ export interface QuoteBreakdown {
   subtotalCents: number;
   /** Refundable security hold; null until the owner sets a per-class deposit. */
   depositCents: number | null;
-  /** Upfront amount that locks the booking. */
-  reservationFeeCents: number;
+  /** Young-driver surcharge line. Always 0 unless the flag below is true. */
+  youngDriverCents: number;
+  /** True when the young-driver per-day fee was applied (snapshotted decision). */
+  youngDriver: boolean;
+  /** Deposit settings snapshotted at quote time; they drive the pay-now math forever after. */
+  depositPercent: number;
+  depositMinCents: number;
   currency: string;
 }
 
-/** Whole rental days; end date is exclusive (the return day). */
-export function rentalDays(startDate: string, endDate: string): number {
-  const a = Date.parse(`${startDate}T00:00:00Z`);
-  const b = Date.parse(`${endDate}T00:00:00Z`);
-  return Math.round((b - a) / 86_400_000);
+/** Whole charged rental days from timestamps: ceil of elapsed hours / 24, min 1.
+ *  09:00 -> 09:00 next day = 1 day; any overrun starts the next day. */
+export function rentalDays(startAt: string, endAt: string): number {
+  const hours = (parseTs(endAt) - parseTs(startAt)) / 3_600_000;
+  return Math.max(1, Math.ceil(hours / 24));
 }
 
 /** Cheapest tiered price for `days` days. cost[0]=0; each day extends from the
@@ -78,7 +89,7 @@ export function bestVehicleCents(days: number, r: VehicleRates): number {
 }
 
 export function quote(input: QuoteInput): QuoteBreakdown {
-  const { days, vehicle, insurance, addOns, reservationFeeCents, currency } = input;
+  const { days, vehicle, insurance, addOns, depositPercent, depositMinCents, currency } = input;
   const vehicleCents = bestVehicleCents(days, vehicle);
   const insuranceCents = insurance ? insurance.dailyPriceCents * days : 0;
 
@@ -90,15 +101,21 @@ export function quote(input: QuoteInput): QuoteBreakdown {
   }));
   const addOnsCents = addOnLines.reduce((sum, l) => sum + l.cents, 0);
 
+  const youngDriver = input.youngDriver ?? false;
+  const youngDriverCents = youngDriver ? (input.youngDriverFeeCentsPerDay ?? 0) * days : 0;
+
   return {
     days,
     vehicleCents,
     insuranceCents,
     addOns: addOnLines,
     addOnsCents,
-    subtotalCents: vehicleCents + insuranceCents + addOnsCents,
+    youngDriver,
+    youngDriverCents,
+    subtotalCents: vehicleCents + insuranceCents + addOnsCents + youngDriverCents,
     depositCents: vehicle.depositCents,
-    reservationFeeCents,
+    depositPercent,
+    depositMinCents,
     currency,
   };
 }
