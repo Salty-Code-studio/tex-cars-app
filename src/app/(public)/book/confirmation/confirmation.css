@@ -217,11 +217,9 @@
   line-height: 1.5;
   color: var(--ink-soft);
 }
-/* step 1's badge flips from a numbered navy circle to a small coral check
-   once confirmed - reuses .step-n's own sizing, only the fill + glyph change. */
-.conf-step-done {
-  background: var(--coral);
-}
+/* step 1's badge swaps its "1" glyph for a small check once confirmed. The
+   navy .step-n fill stays as is: coral is reserved for exactly two elements
+   on this page (the confirmed state mark and the WhatsApp CTA). */
 
 /* ---------- CTA + footer ---------- */
 .conf-cta {

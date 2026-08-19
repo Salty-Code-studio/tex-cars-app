@@ -257,7 +257,7 @@ export default function ConfirmationPage() {
               const done = i === 0 && confirmed;
               return (
                 <li className="conf-step" key={step.title}>
-                  <span className={done ? "step-n conf-step-done" : "step-n"}>
+                  <span className="step-n">
                     {done ? <StepCheck /> : i + 1}
                   </span>
                   <div>
