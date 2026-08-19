@@ -65,7 +65,10 @@ ENV DOCKER_BUILD=1 \
     STRIPE_SECRET_KEY=sk_test_buildonly00000000000000000000 \
     STRIPE_WEBHOOK_SECRET=whsec_buildonly00000000000000000000 \
     PAYMENT_MODE=reserve \
-    NEXT_PUBLIC_PAYMENT_MODE=reserve
+    NEXT_PUBLIC_PAYMENT_MODE=reserve \
+    NEXT_PUBLIC_SITE_NAME="Tex Cars" \
+    NEXT_PUBLIC_SITE_URL=https://tex-cars.com \
+    NEXT_PUBLIC_WHATSAPP_NUMBER=2975945454
 RUN npm run build
 
 # ---- runner: minimal, non-root runtime ----
