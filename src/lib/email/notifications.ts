@@ -13,7 +13,7 @@ import {
   bookingConfirmedEmail, bookingCancelledEmail, adminNewBookingEmail, adminPaymentEmail,
   adminReservationConfirmedEmail, bookingExtendedEmail,
 } from "@/lib/email/templates";
-import { notifyAdmin, sendOwnerWhatsApp, sendOwnerTelegram } from "@/lib/notify";
+import { notifyAdmin, sendOwnerWhatsApp } from "@/lib/notify";
 import { logger } from "@/lib/logger";
 import { formatDateTime } from "@/lib/time/format";
 import type { QuoteBreakdown } from "@/lib/booking/quote";
@@ -48,7 +48,11 @@ export async function notifyNewBooking(bookingId: string): Promise<void> {
       bookingId,
     });
     await sendOwnerWhatsApp(`New booking: ${ctx.vehicleName}, ${formatDateTime(ctx.booking.startAt)} → ${formatDateTime(ctx.booking.endAt)} (${ctx.customerEmail})`).catch(() => undefined);
-    await sendOwnerTelegram(`New booking: ${ctx.vehicleName}, ${formatDateTime(ctx.booking.startAt)} → ${formatDateTime(ctx.booking.endAt)} (${ctx.customerEmail})`).catch(() => undefined);
+    // sendOwnerTelegram was retired from this wiring (desk-mode adoption wave):
+    // the rich approval broadcast (src/lib/approval/core.ts) is the Telegram
+    // surface for new bookings now, so a bare ping here would double-message
+    // the owner. The module stays in src/lib/notify.ts for compliance/ops use;
+    // see PORT-LOG Note 16(e).
   } catch (e) {
     logger.error("notify_new_booking_failed", { bookingId, error: (e as Error).message });
   }

@@ -22,6 +22,23 @@ vi.mock("@/lib/email/send", () => ({
   sendToMany: (recipients: string[], build: (to: string) => OutboundEmail) => sendToMany(recipients, build),
 }));
 
+// Owner-channel spies. sendOwnerTelegram was retired from notifyNewBooking's
+// wiring (desk-mode adoption wave: the approval broadcast is the Telegram
+// surface for new bookings, so a bare ping here would double-message the
+// owner; PORT-LOG Note 16(e)). Its spy must stay UNCALLED; the WhatsApp spy
+// proves the mock wiring is live rather than vacuous. notifyAdmin stays real
+// (the bell row is part of the flow under test).
+const sendOwnerTelegram = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+const sendOwnerWhatsApp = vi.fn<(text: string) => Promise<void>>(async () => undefined);
+vi.mock("@/lib/notify", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/notify")>();
+  return {
+    ...actual,
+    sendOwnerTelegram: (text: string) => sendOwnerTelegram(text),
+    sendOwnerWhatsApp: (text: string) => sendOwnerWhatsApp(text),
+  };
+});
+
 import { notifyNewBooking } from "@/lib/email/notifications";
 import { patchSettings } from "@/lib/admin/settings";
 
@@ -89,5 +106,30 @@ describe("notifyNewBooking admin fan-out", () => {
 
     // Restore for any test ordered after this one in the same file/suite.
     await patchSettings({ adminAlertRecipients: ["owner-a@texcars.example", "owner-b@texcars.example", "owner-c@texcars.example"] });
+  });
+
+  it("never sends the retired owner Telegram ping (the approval broadcast replaced it)", async () => {
+    const [v] = await db.insert(vehicles).values({
+      slug: "new-booking-notif-car-3", plate: "PL-NEWBK-NOTIF-3", class: "SUV", name: "New Booking Notif Car 3",
+      seats: 5, transmission: "Automatic", doors: 5, priceDayCents: 5800, priceWeekCents: 34800, priceMonthCents: 118000,
+    }).returning();
+    const [c] = await db.insert(customers).values({ email: "new-booking-notif-3@test.com" }).returning();
+    const [b] = await db.insert(bookings).values({
+      vehicleId: v!.id, customerId: c!.id,
+      startAt: atAruba("2028-03-08", "09:00"), endAt: atAruba("2028-03-15", "09:00"), bufferEndAt: atAruba("2028-03-16", "09:00"),
+      status: "pending", priceBreakdown: { subtotalCents: 34800, currency: "USD" }, paymentOption: "full",
+      acceptedPolicyVersion: 1, acceptedAt: new Date(), idempotencyKey: "new-booking-notif-3",
+    }).returning();
+
+    sendOwnerTelegram.mockClear();
+    sendOwnerWhatsApp.mockClear();
+    await notifyNewBooking(b!.id);
+
+    // The bare Telegram ping is retired from this wiring: with TELEGRAM_CHAT_ID
+    // set in prod it would double-message the owner alongside the rich approval
+    // broadcast. The WhatsApp call proves the flow reached the owner-channel
+    // step and the spies are wired, so the zero above is a real zero.
+    expect(sendOwnerTelegram).not.toHaveBeenCalled();
+    expect(sendOwnerWhatsApp).toHaveBeenCalledTimes(1);
   });
 });
