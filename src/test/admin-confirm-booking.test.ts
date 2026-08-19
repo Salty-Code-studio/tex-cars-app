@@ -1,6 +1,10 @@
 /**
- * Admin Confirm action (Task 3): confirmBookingAdmin service, the
- * POST /api/admin/bookings/[id]/confirm route, and notifyReservationConfirmed.
+ * Admin Confirm action: confirmBookingAdmin service (now src/lib/admin/
+ * confirm-booking.ts, ported from FD's desk-mode lineage 2026-08-19 -
+ * ffa9733 - superseding the old move-booking.ts version), the
+ * POST /api/admin/bookings/[id]/confirm route, and notifyReservationConfirmed
+ * (retirement tracked separately once notifyBookingConfirmed's own paid/
+ * unpaid copy branch lands - see a3d06a0 in the port ledger).
  *
  * The route-level tests mock next/headers exactly like admin-reset-owner.test.ts
  * (requireAdmin/enforceCsrf read cookies via Next's request-scoped
@@ -13,7 +17,8 @@ import { runMigrations } from "@/lib/db/migrate";
 import { vehicles, settings, customers, bookings, auditLog, emailLog, notifications, adminUsers } from "@/lib/db/schema";
 import { createSession } from "@/lib/auth/sessions";
 import { SESSION_COOKIE, CSRF_COOKIE } from "@/lib/auth/cookies";
-import { confirmBookingAdmin, cancelBookingAdmin } from "@/lib/admin/move-booking";
+import { confirmBookingAdmin } from "@/lib/admin/confirm-booking";
+import { cancelBookingAdmin } from "@/lib/admin/move-booking";
 import { notifyReservationConfirmed } from "@/lib/email/notifications";
 import { reservationConfirmedEmail } from "@/lib/email/templates";
 import { atAruba } from "@/lib/time/format";
@@ -84,7 +89,7 @@ async function authedRequest(adminId: string, url: string, method: string, opts:
 describe("confirmBookingAdmin (service)", () => {
   it("promotes a pending booking straight to confirmed", async () => {
     const bk = await makePendingBooking({ email: "svc-pending@test.com", startDate: "2029-01-01", endDate: "2029-01-05" });
-    const confirmed = await confirmBookingAdmin(bk.id);
+    const confirmed = await confirmBookingAdmin(bk.id, "Test Admin");
     expect(confirmed.status).toBe("confirmed");
     const [row] = await db.select().from(bookings).where(eq(bookings.id, bk.id));
     expect(row!.status).toBe("confirmed");
@@ -92,18 +97,18 @@ describe("confirmBookingAdmin (service)", () => {
 
   it("rejects an already-confirmed booking (conflict)", async () => {
     const bk = await makePendingBooking({ email: "svc-conf@test.com", startDate: "2029-02-01", endDate: "2029-02-05", status: "confirmed" });
-    await expectReject(confirmBookingAdmin(bk.id), /no longer be confirmed/i);
+    await expectReject(confirmBookingAdmin(bk.id, "Test Admin"), /only a pending booking can be confirmed/i);
   });
 
   it("rejects a cancelled booking (conflict)", async () => {
     const bk = await makePendingBooking({ email: "svc-cancel@test.com", startDate: "2029-03-01", endDate: "2029-03-05" });
     await cancelBookingAdmin(bk.id, false, new Date().toISOString());
-    await expectReject(confirmBookingAdmin(bk.id), /no longer be confirmed/i);
+    await expectReject(confirmBookingAdmin(bk.id, "Test Admin"), /only a pending booking can be confirmed/i);
   });
 
   it("rejects a completed booking (conflict)", async () => {
     const bk = await makePendingBooking({ email: "svc-done@test.com", startDate: "2029-04-01", endDate: "2029-04-05", status: "completed" });
-    await expectReject(confirmBookingAdmin(bk.id), /no longer be confirmed/i);
+    await expectReject(confirmBookingAdmin(bk.id, "Test Admin"), /only a pending booking can be confirmed/i);
   });
 });
 
@@ -127,16 +132,22 @@ describe("POST /api/admin/bookings/[id]/confirm (route)", () => {
     expect(audit!.entityId).toBe(bk.id);
   });
 
-  it("staff is denied", async () => {
+  it("staff can confirm too (desk-mode adoption widened this route's roles to owner+staff)", async () => {
     const staff = await makeAdmin("confirm-staff-a@test.com", "staff");
     const bk = await makePendingBooking({ email: "route-staff@test.com", startDate: "2029-06-01", endDate: "2029-06-05" });
     const res = await confirmPOST(
       await authedRequest(staff.id, `/api/admin/bookings/${bk.id}/confirm`, "POST"),
       { params: Promise.resolve({ id: bk.id }) },
     );
-    expect([401, 403]).toContain(res.status);
+    expect(res.status).toBe(200);
     const [row] = await db.select().from(bookings).where(eq(bookings.id, bk.id));
-    expect(row!.status).toBe("pending");
+    expect(row!.status).toBe("confirmed");
+    // Same audit trail as the owner path: mutate() sets actor to the acting
+    // admin's id regardless of role.
+    const [audit] = await db.select().from(auditLog)
+      .where(eq(auditLog.entityId, bk.id))
+      .orderBy(desc(auditLog.createdAt)).limit(1);
+    expect(audit!.actor).toBe(staff.id);
   });
 
   it("missing CSRF header is rejected", async () => {
@@ -155,7 +166,7 @@ describe("POST /api/admin/bookings/[id]/confirm (route)", () => {
 describe("notifyReservationConfirmed", () => {
   it("logs a customer email with the confirmed-reservation subject and NO payment wording", async () => {
     const bk = await makePendingBooking({ email: "notify-confirm@test.com", startDate: "2029-08-01", endDate: "2029-08-05" });
-    await confirmBookingAdmin(bk.id);
+    await confirmBookingAdmin(bk.id, "Test Admin");
     await notifyReservationConfirmed(bk.id);
 
     const [log] = await db.select().from(emailLog)
@@ -175,7 +186,7 @@ describe("notifyReservationConfirmed", () => {
 
   it("writes a booking.confirmed_manual admin notification row", async () => {
     const bk = await makePendingBooking({ email: "notify-admin-row@test.com", startDate: "2029-09-01", endDate: "2029-09-05" });
-    await confirmBookingAdmin(bk.id);
+    await confirmBookingAdmin(bk.id, "Test Admin");
     await notifyReservationConfirmed(bk.id);
 
     const [row] = await db.select().from(notifications)
