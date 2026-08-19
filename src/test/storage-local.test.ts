@@ -1,14 +1,22 @@
 import { describe, it, expect, afterAll } from "vitest";
 import { rm } from "node:fs/promises";
 import path from "node:path";
+import { env } from "@/env";
 import { putObject, getObject, deleteObject, getSignedUrl, assertSafeKey, contentTypeForKey } from "@/lib/storage";
 import { signLocalUrl, verifyLocalSignature } from "@/lib/storage/local";
 
 afterAll(async () => {
-  await rm(path.resolve(process.cwd(), ".dev-storage"), { recursive: true, force: true });
+  await rm(path.resolve(process.cwd(), env.LOCAL_STORAGE_DIR), { recursive: true, force: true });
 });
 
 describe("local storage driver", () => {
+  // Task 7 gate fix regression lock: this suite must never point at a real
+  // dev/demo server's storage dir (see src/test/setup.ts). If this ever
+  // starts failing, something re-broke the test/dev storage isolation.
+  it("LOCAL_STORAGE_DIR is a dedicated test directory, never .dev-storage", () => {
+    expect(env.LOCAL_STORAGE_DIR).toBe(".test-storage");
+  });
+
   it("round-trips putObject -> getObject with the right content type", async () => {
     const bytes = new Uint8Array([1, 2, 3, 4]);
     await putObject("inspections/test-booking/pickup/a.jpg", bytes, "image/jpeg");

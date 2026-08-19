@@ -31,3 +31,6 @@ npm-debug.log*
 
 # local object-storage driver (STORAGE_DRIVER=local)
 .dev-storage
+# test-only storage dir (src/test/setup.ts pins LOCAL_STORAGE_DIR here so the
+# suite's afterAll cleanup can never touch a real dev/demo server's .dev-storage)
+.test-storage

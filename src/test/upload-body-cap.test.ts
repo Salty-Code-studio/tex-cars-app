@@ -21,6 +21,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { rm } from "node:fs/promises";
 import path from "node:path";
+import { env } from "@/env";
 import { getDb } from "@/lib/db/client";
 import { runMigrations } from "@/lib/db/migrate";
 import { vehicles, customers, bookings } from "@/lib/db/schema";
@@ -68,7 +69,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await rm(path.resolve(process.cwd(), ".dev-storage"), { recursive: true, force: true });
+  await rm(path.resolve(process.cwd(), env.LOCAL_STORAGE_DIR), { recursive: true, force: true });
 });
 
 function multipartRequest(opts: { contentLength?: string; fileSize?: number }) {

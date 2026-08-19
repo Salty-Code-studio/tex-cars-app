@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { rm } from "node:fs/promises";
 import path from "node:path";
+import { env } from "@/env";
 import { eq, and } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { runMigrations } from "@/lib/db/migrate";
@@ -74,7 +75,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await rm(path.resolve(process.cwd(), ".dev-storage"), { recursive: true, force: true });
+  await rm(path.resolve(process.cwd(), env.LOCAL_STORAGE_DIR), { recursive: true, force: true });
 });
 
 describe("completePickup", () => {

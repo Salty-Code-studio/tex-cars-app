@@ -24,6 +24,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { rm } from "node:fs/promises";
 import path from "node:path";
+import { env } from "@/env";
 import { runMigrations } from "@/lib/db/migrate";
 import { createStaff } from "@/lib/admin/staff";
 import { createSession } from "@/lib/auth/sessions";
@@ -59,7 +60,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await rm(path.resolve(process.cwd(), ".dev-storage"), { recursive: true, force: true });
+  await rm(path.resolve(process.cwd(), env.LOCAL_STORAGE_DIR), { recursive: true, force: true });
 });
 
 function filesRequest(key: string) {
