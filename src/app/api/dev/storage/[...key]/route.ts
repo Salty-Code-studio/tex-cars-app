@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * GET /api/dev/storage/[...key]?exp=<epoch-seconds>&sig=<hmac-hex>
- * Serves LOCAL-driver objects behind an HMAC-signed, expiring link — the dev
+ * Serves LOCAL-driver objects behind an HMAC-signed, expiring link - the dev
  * stand-in for Supabase signed URLs. Hard-404s unless STORAGE_DRIVER=local, so
  * it does not exist in a Supabase-backed deployment.
  */

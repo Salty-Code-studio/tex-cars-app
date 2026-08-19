@@ -13,12 +13,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/admin/uploads — multipart upload for check-in/out media.
+ * POST /api/admin/uploads - multipart upload for check-in/out media.
  * Fields: file (jpeg/png/webp, <= 10MB), category, bookingId, kind?, label?.
  * The client downscales photos before upload (canvas, longest edge ~1600px),
  * so 10MB is a hard backstop, not the normal case. CSRF: the client sends the
  * X-CSRF-Token header alongside the multipart body (never set Content-Type
- * manually — the browser adds the multipart boundary).
+ * manually - the browser adds the multipart boundary).
  */
 export const POST = withRoute(async (req) => {
   const result = await mutate(req, "admin.file_uploaded", async () => {

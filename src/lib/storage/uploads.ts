@@ -3,7 +3,7 @@
  * and where it lives in the key space. Key formats are canonical (seams doc):
  *   inspections/{bookingId}/{kind}/{uuid}.jpg
  *   licenses/{bookingId}/{uuid}.jpg
- *   signatures/{bookingId}.png       (deterministic — re-signing overwrites)
+ *   signatures/{bookingId}.png       (deterministic - re-signing overwrites)
  * Contract PDFs are server-generated (never uploaded) at contracts/{bookingId}.pdf.
  */
 import { randomUUID } from "node:crypto";

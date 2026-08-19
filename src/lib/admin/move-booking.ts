@@ -177,7 +177,7 @@ export async function cancelBookingAdmin(id: string, refund: boolean, nowIso: st
   const [booking] = await db.select().from(bookings).where(eq(bookings.id, id));
   if (!booking) throw Errors.notFound("Booking not found");
   // Allow-list, not deny-list: only pending/confirmed can be cancelled. A
-  // picked_up car is OUT — it must come back through check-out, never a cancel
+  // picked_up car is OUT - it must come back through check-out, never a cancel
   // (the exclusion constraint keeps its slot reserved while it's gone).
   if (booking.status !== "pending" && booking.status !== "confirmed") {
     throw Errors.conflict("This booking can no longer be cancelled");

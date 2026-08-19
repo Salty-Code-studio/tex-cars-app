@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/admin/files/[...key] — stream a stored object to an authenticated
+ * GET /api/admin/files/[...key] - stream a stored object to an authenticated
  * admin, SAME-ORIGIN. The admin UI's strict CSP (img-src 'self') forbids
  * loading cross-origin Supabase URLs, so all inspection photos, signatures,
  * and contracts render through this route regardless of the active driver.

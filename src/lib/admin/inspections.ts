@@ -173,7 +173,7 @@ export async function getHandover(bookingId: string): Promise<HandoverPayload> {
   return {
     booking: {
       id: b.id, status: b.status, source: b.source, notes: b.notes,
-      // startAt/endAt are `mode: "string"` timestamptz columns — already ISO
+      // startAt/endAt are `mode: "string"` timestamptz columns - already ISO
       // strings; pass them straight through like the ops board (planning.ts) does.
       startAt: b.startAt, endAt: b.endAt,
       currency: breakdown.currency ?? "USD",
@@ -452,7 +452,7 @@ export async function sweepInspectionMedia(now = new Date()): Promise<number> {
       insp.licensePhotoKey,
       insp.signatureKey,
     ].filter((k): k is string => !!k);
-    if (keys.length === 0) continue; // already purged — idempotent
+    if (keys.length === 0) continue; // already purged, idempotent
 
     for (const key of keys) {
       await deleteObject(key).catch((e) =>

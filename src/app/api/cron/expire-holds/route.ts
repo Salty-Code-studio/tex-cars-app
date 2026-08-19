@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * GET /api/cron/expire-holds — runs every 15 minutes (vercel.json, and
+ * GET /api/cron/expire-holds - runs every 15 minutes (vercel.json, and
  * wrangler.jsonc's Cloudflare trigger + worker/index.ts's cron-keyed
  * dispatch). Authenticated by the CRON_SECRET bearer token; refuses to run
  * without it. Two chores: cancel stale unpaid pending holds, and purge

@@ -9,7 +9,7 @@ export interface InspectionPhoto { key: string; label: string }
 export interface DamageFlag { photoKey: string; note: string }
 
 /**
- * One row per booking per kind (pickup | return) — the check-in/check-out
+ * One row per booking per kind (pickup | return) - the check-in/check-out
  * record (spec W4). Photos/licence/signature are STORAGE KEYS into the private
  * object store, never URLs. Checklist booleans render as single-tap toggles in
  * the BookingDrawer; borg (security deposit) amounts feed the reports

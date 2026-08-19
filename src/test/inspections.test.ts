@@ -114,7 +114,7 @@ describe("getHandover", () => {
 describe("cancelBookingAdmin transition guard", () => {
   it("refuses to cancel a picked_up booking (the car is out)", async () => {
     const b = await mkBooking("insp-cancel-1", "picked_up");
-    // cancelBookingAdmin(id, refund, nowIso) — plan 02's refund-flow signature.
+    // cancelBookingAdmin(id, refund, nowIso) - plan 02's refund-flow signature.
     await expect(cancelBookingAdmin(b.id, false, new Date().toISOString())).rejects.toThrow(/no longer be cancelled/i);
   });
 });
