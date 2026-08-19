@@ -13,11 +13,14 @@ process.env.NEXT_PUBLIC_PAYMENT_MODE = "desk";
 /**
  * Admin Confirm action: confirmBookingAdmin service (now src/lib/admin/
  * confirm-booking.ts, ported from FD's desk-mode lineage 2026-08-19 -
- * ffa9733 - superseding the old move-booking.ts version), the
+ * ffa9733 - superseding the old move-booking.ts version) and the
  * POST /api/admin/bookings/[id]/confirm route (desk-mode gated as of
- * c58b0a5), and notifyReservationConfirmed (retirement tracked separately
- * once notifyBookingConfirmed's own paid/unpaid copy branch lands - see
- * a3d06a0 in the port ledger).
+ * c58b0a5). The old notifyReservationConfirmed coverage that used to live
+ * here retired with the function itself (a3d06a0, port): notifyBookingConfirmed's
+ * new `paid` branch (src/lib/email/notifications.ts) covers the same "no
+ * payment happened" case now, with its own regression test in
+ * desk-confirm-copy.test.ts, exercised through the real approval flow rather
+ * than a direct call.
  *
  * The route-level tests mock next/headers exactly like admin-reset-owner.test.ts
  * (requireAdmin/enforceCsrf read cookies via Next's request-scoped
@@ -64,8 +67,6 @@ beforeAll(async () => {
     cookies: await import("@/lib/auth/cookies"),
     confirmBookingAdmin: (await import("@/lib/admin/confirm-booking")).confirmBookingAdmin,
     cancelBookingAdmin: (await import("@/lib/admin/move-booking")).cancelBookingAdmin,
-    notifyReservationConfirmed: (await import("@/lib/email/notifications")).notifyReservationConfirmed,
-    reservationConfirmedEmail: (await import("@/lib/email/templates")).reservationConfirmedEmail,
     atAruba: (await import("@/lib/time/format")).atAruba,
     expectReject: (await import("./util")).expectReject,
   };
@@ -183,43 +184,5 @@ describe("POST /api/admin/bookings/[id]/confirm (route)", () => {
     expect([401, 403]).toContain(res.status);
     const [row] = await db.select().from(mod.schema.bookings).where(mod.eq(mod.schema.bookings.id, bk.id));
     expect(row!.status).toBe("pending");
-  });
-});
-
-describe("notifyReservationConfirmed", () => {
-  it("logs a customer email with the confirmed-reservation subject and NO payment wording", async () => {
-    const bk = await makePendingBooking({ email: "notify-confirm@test.com", startDate: "2029-08-01", endDate: "2029-08-05" });
-    await mod.confirmBookingAdmin(bk.id, "Test Admin");
-    await mod.notifyReservationConfirmed(bk.id);
-
-    const [log] = await db.select().from(mod.schema.emailLog)
-      .where(mod.eq(mod.schema.emailLog.to, "notify-confirm@test.com"))
-      .orderBy(mod.desc(mod.schema.emailLog.createdAt)).limit(1);
-    expect(log).toBeDefined();
-    expect(log!.type).toBe("reservation_confirmed");
-
-    const rendered = mod.reservationConfirmedEmail({ vehicleName: "Confirm Car", startAt: mod.atAruba("2029-08-01", "09:00"), endAt: mod.atAruba("2029-08-05", "09:00") });
-    expect(rendered.subject).toBe("Your Tex Cars reservation is confirmed");
-    expect(rendered.html.toLowerCase()).not.toContain("payment");
-    expect(rendered.html.toLowerCase()).not.toContain("paid");
-    expect(rendered.html).toContain("You pay the deposit at pickup. See you soon!");
-    expect(rendered.subject).not.toContain("—");
-    expect(rendered.html).not.toContain("—");
-  });
-
-  it("writes a booking.confirmed_manual admin notification row", async () => {
-    const bk = await makePendingBooking({ email: "notify-admin-row@test.com", startDate: "2029-09-01", endDate: "2029-09-05" });
-    await mod.confirmBookingAdmin(bk.id, "Test Admin");
-    await mod.notifyReservationConfirmed(bk.id);
-
-    const [row] = await db.select().from(mod.schema.notifications)
-      .where(mod.eq(mod.schema.notifications.type, "booking.confirmed_manual"))
-      .orderBy(mod.desc(mod.schema.notifications.createdAt)).limit(1);
-    expect(row).toBeDefined();
-    expect(row!.bookingId).toBe(bk.id);
-  });
-
-  it("is best-effort: resolves void even for a booking id that no longer resolves to a full row", async () => {
-    await expect(mod.notifyReservationConfirmed("00000000-0000-0000-0000-000000000000")).resolves.toBeUndefined();
   });
 });

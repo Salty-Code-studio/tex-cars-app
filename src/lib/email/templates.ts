@@ -43,6 +43,12 @@ export function bookingConfirmedEmail(args: {
   vehicleName: string; startAt: string; endAt: string;
   rentalTotalCents: number; currency: string;
   amountPaidCents?: number; chargeType?: string;
+  /** Whether a real online payment succeeded for this booking. Keyed on DATA
+   *  (the caller already looked up the payment row), never on deployment
+   *  mode: a desk-mode confirmation has no payment to claim, so the opening
+   *  line must say so instead of thanking the customer for a charge that
+   *  never happened. When true the copy is byte-for-byte the original. */
+  paid: boolean;
 }): RenderedEmail {
   const CHARGE_LABEL: Record<string, string> = {
     reservation_fee: "(reservation fee)",
@@ -54,10 +60,13 @@ export function bookingConfirmedEmail(args: {
   const paidLine = args.amountPaidCents !== undefined
     ? `Paid now: <strong>${money(args.amountPaidCents, args.currency)}</strong> ${CHARGE_LABEL[args.chargeType ?? ""] ?? ""}<br>`
     : "";
+  const openingLine = args.paid
+    ? "Thanks, your payment came through and your car is reserved."
+    : "Thanks, your booking is confirmed. You pay at pickup at the desk.";
   return {
     subject: `Your ${args.vehicleName} booking is confirmed`,
     html: shell("Booking confirmed", `
-      <p>Thanks, your payment came through and your car is reserved.</p>
+      <p>${openingLine}</p>
       <p><strong>${args.vehicleName}</strong><br>${formatDateTime(args.startAt)} to ${formatDateTime(args.endAt)}</p>
       <p>${paidLine}Rental total: ${money(args.rentalTotalCents, args.currency)}<br>
       <span style="color:#828aa6;font-size:13px">We settle the balance with you at pickup.</span></p>
@@ -65,20 +74,13 @@ export function bookingConfirmedEmail(args: {
   };
 }
 
-/**
- * Manual admin confirm from the ops board (no payment webhook involved, e.g. a
- * cash-deposit reservation the desk approved). Deliberately carries NO
- * payment/paid language, unlike bookingConfirmedEmail.
- */
-export function reservationConfirmedEmail(args: { vehicleName: string; startAt: string; endAt: string }): RenderedEmail {
-  return {
-    subject: "Your Tex Cars reservation is confirmed",
-    html: shell("Reservation confirmed", `
-      <p>Good news, your reservation is confirmed.</p>
-      <p><strong>${args.vehicleName}</strong><br>${formatDateTime(args.startAt)} to ${formatDateTime(args.endAt)}</p>
-      <p>You pay the deposit at pickup. See you soon!</p>`),
-  };
-}
+// reservationConfirmedEmail (manual admin confirm from the ops board,
+// deliberately no payment/paid language) lived here until 2026-08-19.
+// Retired alongside notifyReservationConfirmed in src/lib/email/
+// notifications.ts: bookingConfirmedEmail's new `paid` argument (above) now
+// covers the same "no payment happened" case correctly for every confirm
+// origin (Stripe webhook, Telegram tap, email link, admin button), through
+// the one shared notifyBookingConfirmed funnel.
 
 export function bookingCancelledEmail(args: {
   vehicleName: string; startAt: string; endAt: string;

@@ -11,7 +11,7 @@ import { getSettings } from "@/lib/admin/settings";
 import { sendAndLog, sendToMany } from "@/lib/email/send";
 import {
   bookingConfirmedEmail, bookingCancelledEmail, adminNewBookingEmail, adminPaymentEmail,
-  reservationConfirmedEmail, bookingExtendedEmail,
+  bookingExtendedEmail,
 } from "@/lib/email/templates";
 import { notifyAdmin, sendOwnerWhatsApp, sendOwnerTelegram } from "@/lib/notify";
 import { logger } from "@/lib/logger";
@@ -54,33 +54,20 @@ export async function notifyNewBooking(bookingId: string): Promise<void> {
   }
 }
 
-/**
- * Admin manually promoted a pending booking to confirmed from the ops board
- * (e.g. cash deposit collected at the desk) — NOT the paid-webhook path, so
- * this deliberately says nothing about a payment having been received.
- */
-export async function notifyReservationConfirmed(bookingId: string): Promise<void> {
-  try {
-    const ctx = await context(bookingId);
-    if (!ctx) return;
-    await sendAndLog({
-      to: ctx.customerEmail, type: "reservation_confirmed",
-      ...reservationConfirmedEmail({
-        vehicleName: ctx.vehicleName, startAt: ctx.booking.startAt, endAt: ctx.booking.endAt,
-      }),
-    });
-    await notifyAdmin({
-      level: "info", type: "booking.confirmed_manual", title: "Reservation confirmed",
-      body: `${ctx.vehicleName} · ${formatDateTime(ctx.booking.startAt)} → ${formatDateTime(ctx.booking.endAt)} · ${ctx.customerEmail}`,
-      bookingId,
-    });
-    await sendOwnerTelegram(`Reservation confirmed: ${ctx.vehicleName}, ${formatDateTime(ctx.booking.startAt)} → ${formatDateTime(ctx.booking.endAt)} (${ctx.customerEmail})`).catch(() => undefined);
-  } catch (e) {
-    logger.error("notify_reservation_confirmed_failed", { bookingId, error: (e as Error).message });
-  }
-}
+// notifyReservationConfirmed (the manual-admin-confirm-only email, deliberately
+// silent about payment) lived here until 2026-08-19. Retired: notifyBookingConfirmed
+// below now keys its customer email, admin bell, and owner WhatsApp copy on
+// whether a succeeded payment row actually exists (the `paid` flag), so it is
+// byte-accurate for a desk-mode manual/chat confirm too and this Tex-only
+// surface no longer had a distinct job to do. src/lib/admin/confirm-booking.ts
+// (both its plain-flip branch and its applyDecision branch) already called
+// notifyBookingConfirmed, not this function, so no caller changes were needed.
 
-/** Customer confirmation + admin payment alert after a paid webhook. */
+/** Customer confirmation + admin payment alert after a paid webhook (online)
+ *  or a desk-mode approval decision (Telegram tap, email link, admin button,
+ *  none of which ever take an online payment). `paid` is keyed on whether a
+ *  succeeded payment row actually exists, never on PAYMENT_MODE, so the copy
+ *  stays correct for both origins through this one shared funnel. */
 export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
   try {
     const ctx = await context(bookingId);
@@ -90,6 +77,7 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
     const db = await getDb();
     const [pay] = await db.select().from(payments)
       .where(and(eq(payments.bookingId, bookingId), eq(payments.status, "succeeded")));
+    const paid = Boolean(pay);
 
     await sendAndLog({
       to: ctx.customerEmail, type: "booking_confirmed",
@@ -97,6 +85,7 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
         vehicleName: ctx.vehicleName, startAt: ctx.booking.startAt, endAt: ctx.booking.endAt,
         rentalTotalCents: breakdown.subtotalCents, currency: pay?.currency ?? breakdown.currency,
         amountPaidCents: pay?.amountCents, chargeType: pay?.type,
+        paid,
       }),
     });
 
@@ -111,11 +100,18 @@ export async function notifyBookingConfirmed(bookingId: string): Promise<void> {
       }));
     }
     await notifyAdmin({
-      level: "success", type: "payment.received", title: "Payment received",
-      body: `${ctx.vehicleName} confirmed · ${ctx.customerEmail}`,
+      level: "success",
+      type: paid ? "payment.received" : "booking.confirmed",
+      title: paid ? "Payment received" : "Booking confirmed",
+      body: paid
+        ? `${ctx.vehicleName} confirmed · ${ctx.customerEmail}`
+        : `${ctx.vehicleName} confirmed, pay at pickup · ${ctx.customerEmail}`,
       bookingId,
     });
-    await sendOwnerWhatsApp(`Payment received: ${ctx.vehicleName} confirmed (${ctx.customerEmail})`).catch(() => undefined);
+    await sendOwnerWhatsApp(paid
+      ? `Payment received: ${ctx.vehicleName} confirmed (${ctx.customerEmail})`
+      : `Booking confirmed (pay at pickup): ${ctx.vehicleName} confirmed (${ctx.customerEmail})`,
+    ).catch(() => undefined);
   } catch (e) {
     logger.error("notify_booking_confirmed_failed", { bookingId, error: (e as Error).message });
   }
